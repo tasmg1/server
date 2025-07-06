@@ -154,14 +154,28 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
-            # ✅ رابط التحميل المؤقت
-            download_url = "https://pixeldrain.com/api/file/E5iLBCRv?download"
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني."
-            )
-
-            del approved_users[user_id]
+            # ✅ طلب رابط مؤقت من سيرفر Flask
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        "https://gfdbgta.pythonanywhere.com/generate_link",
+                        json={"user_id": str(user_id), "device": device_code}
+                    ) as resp:
+                        data = await resp.json()
+                        if "download_url" in data:
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text=f"🔗 رابط التحميل:\n{data['download_url']}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني."
+                            )
+                            del approved_users[user_id]
+                        else:
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
+                            )
+            except Exception as e:
+                await context.bot.send_message(chat_id=user_id, text="⚠️ فشل الاتصال بسيرفر التحميل.")
+                print(f"❌ خطأ في توليد الرابط المؤقت: {e}")
 
     except Exception as e:
         print(f"❌ خطأ في button_handler: {e}")
