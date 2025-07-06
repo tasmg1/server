@@ -155,7 +155,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             # ✅ رابط التحميل المؤقت
-            download_url = "https://gfdbgta.pythonanywhere.com/generate_link"
+            download_url = "https://pixeldrain.com/api/file/E5iLBCRv?download"
             await context.bot.send_message(
                 chat_id=user_id,
                 text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني."
