@@ -153,11 +153,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
-            download_url = "https://gfdbgta.pythonanywhere.com/generate_link"
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني ."
-            )
+            download_url = await get_temp_download_link(user_id)
+if download_url:
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=f"🔗 رابط التحميل المؤقت:\n{download_url}\n\n⚠️ صالح للتحميل لمدة قصيرة وعدد محدود من المحاولات."
+    )
+else:
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="❌ فشل في توليد رابط التحميل المؤقت. حاول لاحقًا."
+    )
             del approved_users[user_id]
 
     except Exception as e:
