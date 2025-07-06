@@ -1,5 +1,15 @@
+import os
+import sys
+import time
+import signal
 import asyncio
 import aiohttp
+import nest_asyncio
+
+from datetime import datetime
+from threading import Thread
+from flask import Flask
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -10,16 +20,7 @@ from telegram.ext import (
     filters
 )
 
-from flask import Flask
-from threading import Thread
-import nest_asyncio
-import os
-import signal
-import sys
-import time
-from datetime import datetime
-
-# --- ✅ keep_alive لعدم فصل Replit ---
+# ✅ إعداد Flask لتشغيل السيرفر على Replit
 app = Flask('')
 
 @app.route('/')
@@ -34,7 +35,7 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# --- ✅ إعدادات البوت ---
+# ✅ إعدادات البوت
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
 
@@ -57,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
-# ✅ استلام صورة الإيصال
+# ✅ استقبال صورة الإيصال
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file_id = update.message.photo[-1].file_id
@@ -79,7 +80,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("📩 تم استلام الإيصال وسيتم مراجعته قريبًا.")
 
-# ✅ إدارة الأزرار مع إضافة اسم المستخدم و ID و الوقت
+# ✅ إدارة الرد على الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         query = update.callback_query
@@ -91,14 +92,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 approved_users[user_id] = {
                     'approved_time': time.time(),
                     'status': 'approved'
                 }
                 del pending_payments[user_id]
-
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 keyboard = InlineKeyboardMarkup([
                     [
@@ -112,6 +112,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text="✅ تم قبول الدفع بنجاح!\n\n📲 يرجى اختيار نوع جهازك لتحصل على رابط التحميل:",
                     reply_markup=keyboard
                 )
+
                 await query.edit_message_caption(
                     f"✅ تم قبول الدفع.\n"
                     f"👤 الاسم: {username}\n"
@@ -127,15 +128,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 del pending_payments[user_id]
-
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 await context.bot.send_message(
                     chat_id=user_id,
                     text="❌ تم رفض إيصال الدفع.\n\n🔍 يرجى التحقق من المعلومات أو التواصل معنا:\n📱 https://www.instagram.com/ta_smg"
                 )
+
                 await query.edit_message_caption(
                     f"🚫 تم رفض الدفع.\n"
                     f"👤 الاسم: {username}\n"
@@ -153,16 +154,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
+            # ✅ رابط التحميل المؤقت
             download_url = "https://gfdbgta.pythonanywhere.com/generate_link"
             await context.bot.send_message(
                 chat_id=user_id,
-                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني ."
+                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني."
             )
-else:
-    await context.bot.send_message(
-        chat_id=user_id,
-        text="❌ فشل في توليد رابط التحميل المؤقت. حاول لاحقًا."
-    )
+
             del approved_users[user_id]
 
     except Exception as e:
@@ -176,6 +174,7 @@ else:
 async def main():
     try:
         application = ApplicationBuilder().token(TOKEN).build()
+
         application.add_handler(CommandHandler("start", start))
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         application.add_handler(CallbackQueryHandler(button_handler))
@@ -185,7 +184,7 @@ async def main():
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت: {e}")
 
-# ✅ بدء التشغيل بدون قفل
+# ✅ تشغيل السيرفر والبوت
 if __name__ == "__main__":
     try:
         signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
