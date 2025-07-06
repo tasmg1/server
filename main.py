@@ -154,11 +154,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             download_url = await get_temp_download_link(user_id)
-if download_url:
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=f"🔗 رابط التحميل المؤقت:\n{download_url}\n\n⚠️ صالح للتحميل لمدة قصيرة وعدد محدود من المحاولات."
-    )
+download_url = "https://gfdbgta.pythonanywhere.com/download/f59a2c38-3f8e-4f98-a765-4fd6eeb11aa4"
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني ."
+            )
 else:
     await context.bot.send_message(
         chat_id=user_id,
