@@ -37,31 +37,32 @@ def keep_alive():
     t.start()
 
 # ========================
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+# إعدادات البوت
+TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
 
-pending_payments = {}
-approved_users = {}
+pending_payments = {}  # المستخدمون الذين أرسلوا إيصال
+approved_users = {}    # المستخدمون الذين تم قبول دفعهم
 
-# رسالة /start مع شرح الدفع واللعبتين
+# رسالة /start مع شرح طريقة الدفع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = (
         "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
-        "⚠️ لدينا لعبتان متاحتان للتحميل بعد الدفع:\n"
-        "1️⃣ The Challenge (اللعبة القديمة)\n"
-        "2️⃣ Chicken Life (اللعبة الجديدة)\n\n"
+        "⚠️ التحميل بعد الدفع:\n"
+        "1️⃣ The Challenge\n"
+        "2️⃣ Chicken Life\n\n"
         "💳 <b>طريقة الدفع:</b>\n"
         " تحويل المبلغ إلى بطاقة <b>ماستر كارد</b>:\n"
         "<code>7113282938</code>\n\n"
         "⚠️ المبلغ غير محدد، لكن يجب الدفع أولاً.\n"
         "⚠️ أقل مبلغ للدفع هو IQD 1000.\n\n"
         "📩 بعد الدفع، أرسل صورة إيصال الدفع هنا.\n"
-        "⚠️ الألعاب الآن متاحة على أجهزة الأندرويد فقط !\n"
+        "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد حالياً.\n"
         "📞 للتواصل أو الدعم: <a href='https://www.instagram.com/ta_smg'>اضغط هنا للتواصل عبر إنستغرام</a>"
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
-# استقبال صورة الدفع
+# استقبال صورة الإيصال من المستخدم
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file_id = update.message.photo[-1].file_id
@@ -74,6 +75,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
+    # إرسال الإيصال إلى الأدمن مع أزرار قبول أو رفض
     await context.bot.send_photo(
         chat_id=ADMIN_CHAT_ID,
         photo=file_id,
@@ -83,14 +85,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("📩 تم استلام الإيصال وسيتم مراجعته قريبًا.")
 
-# التعامل مع أزرار البوت
+# التعامل مع أزرار الأدمن أو المستخدم
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         query = update.callback_query
         await query.answer()
         data = query.data
 
-        # قبول الدفع
+        # قبول الدفع من الأدمن
         if data.startswith("approve_"):
             user_id = int(data.split("_")[1])
             if user_id in pending_payments:
@@ -124,7 +126,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-        # رفض الدفع
+        # رفض الدفع من الأدمن
         elif data.startswith("reject_"):
             user_id = int(data.split("_")[1])
             if user_id in pending_payments:
@@ -148,7 +150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-        # اختيار الجهاز
+        # اختيار نوع الجهاز
         elif data.startswith("device_"):
             _, device_code, user_id = data.split("_")
             user_id = int(user_id)
@@ -157,7 +159,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
-            # إرسال اختيار اللعبة بعد اختيار الجهاز
+            # لوحة اختيار اللعبة
             game_selection_keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{device_code}_{user_id}"),
@@ -180,7 +182,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
-            # بيانات إرسالها للسيرفر
             payload = {
                 "user_id": str(user_id),
                 "device": device_code,
@@ -239,12 +240,19 @@ async def main():
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت: {e}")
 
+# تشغيل السيرفر والبوت
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
-    signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
+    try:
+        signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
+        signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
 
-    keep_alive()
-    nest_asyncio.apply()
+        keep_alive()
+        nest_asyncio.apply()
 
-    print("🚀 بدء تشغيل البوت...")
-    asyncio.run(main())
+        print("🚀 بدء تشغيل البوت...")
+        asyncio.run(main())
+
+    except KeyboardInterrupt:
+        print("🛑 تم إيقاف البوت بواسطة المستخدم")
+    except Exception as e:
+        print(f"❌ خطأ عام: {e}")
