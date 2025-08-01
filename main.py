@@ -127,11 +127,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del pending_payments[user_id]
 
                 # إرسال أزرار اختيار نوع الجهاز للمستخدمkeyboard = InlineKeyboardMarkup([
-                    [
+                [
                         InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}"),
                         InlineKeyboardButton("🍎 آيفون", callback_data=f"device_ios_{user_id}")
-                    ]
-                ])
+                ]
 
                 # إبلاغ المستخدم بقبول الدفع وطلب اختيار الجهاز
                 await context.bot.send_message(
@@ -215,9 +214,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"❌ خطأ في توليد الرابط المؤقت: {e}")
 
     except Exception as e:print(f"❌ خطأ في button_handler: {e}")
-        try:
+    try:
             await query.edit_message_caption("❌ حدث خطأ أثناء معالجة الطلب.")
-        except:
+    except:
             pass
 
 # ========================
