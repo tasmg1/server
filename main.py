@@ -203,7 +203,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     f"🔗 رابط تحميل لعبة "
                                     f"{game_name.replace('thechallenge', 'The Challenge').replace('chickenlife', 'Chicken Life')}:\n"
                                     f"{download_url}\n\n"
-                                    "⚠️ صالح للتحميل لمرة واحدة فقط خلال 10 ثواني."
+                                    "⚠️ صالح للتحميل لمدة 30 ثانية فقط."
                                 )
                             )
                             del approved_users[user_id]
