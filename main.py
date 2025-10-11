@@ -1,14 +1,10 @@
-import os
 import sys
-import time
 import signal
 import asyncio
-import aiohttp
 import nest_asyncio
-
-from datetime import datetime
 from threading import Thread
 from flask import Flask
+import aiohttp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -20,7 +16,7 @@ from telegram.ext import (
 )
 
 # ========================
-# سيرفر مصغّر للحفاظ على البوت حي (اختياري)
+# سيرفر مصغّر للحفاظ على البوت حي
 app = Flask('')
 
 @app.route('/')
@@ -36,7 +32,6 @@ def keep_alive():
     t.start()
 
 # ========================
-# إعدادات البوت
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
 
@@ -67,7 +62,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id = update.message.photo[-1].file_id
     pending_payments[user_id] = file_id
 
-    keyboard = InlineKeyboardMarkup([[
+    keyboard = InlineKeyboardMarkup([[ 
         InlineKeyboardButton("✅ قبول", callback_data=f"approve_{user_id}"),
         InlineKeyboardButton("❌ رفض", callback_data=f"reject_{user_id}")
     ]])
@@ -78,7 +73,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"🧾 إيصال من المستخدم {user_id}",
         reply_markup=keyboard
     )
-
     await update.message.reply_text("📩 تم استلام الإيصال، بانتظار المراجعة.")
 
 # التعامل مع الأزرار
@@ -94,7 +88,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 approved_users[user_id] = {'time': time.time(), 'status': 'approved'}
                 del pending_payments[user_id]
 
-                keyboard = InlineKeyboardMarkup([[
+                keyboard = InlineKeyboardMarkup([[ 
                     InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}"),
                     InlineKeyboardButton("🍎 آيفون", callback_data=f"device_ios_{user_id}")
                 ]])
@@ -104,7 +98,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text="✅ تم قبول الدفع.\nاختر نوع جهازك:",
                     reply_markup=keyboard
                 )
-
                 await query.edit_message_caption(f"✅ تم قبول دفع المستخدم {user_id}")
 
         elif data.startswith("reject_"):
@@ -125,7 +118,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="⚠️ لم يتم قبول الدفع بعد.")
                 return
 
-            keyboard = InlineKeyboardMarkup([[
+            keyboard = InlineKeyboardMarkup([[ 
                 InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{device}_{user_id}"),
                 InlineKeyboardButton("🐔 Chicken Life", callback_data=f"game_chickenlife_{device}_{user_id}")
             ]])
@@ -147,9 +140,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
 
             try:
-                # ✅ يتصل بالسيرفر المحلي على المنفذ 54575
+                # ✅ ربط البوت بسيرفر PythonAnywhere
                 async with aiohttp.ClientSession() as session:
-                    async with session.post("http://127.0.0.1:54575/generate_link", json=payload) as resp:
+                    async with session.post("https://gfdbgta.pythonanywhere.com/generate_link", json=payload) as resp:
                         data = await resp.json()
                         download_url = data.get("download_url")
 
@@ -186,6 +179,7 @@ async def main():
 # ========================
 # التشغيل الرئيسي
 if __name__ == "__main__":
+    import sys, signal
     try:
         signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
         signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
