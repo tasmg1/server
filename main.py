@@ -78,39 +78,55 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # التعامل مع الأزرار
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
 
     try:
+        # ✅ القبول
         if data.startswith("approve_"):
+            await query.answer()
             user_id = int(data.split("_")[1])
+
             if user_id in pending_payments:
-                approved_users[user_id] = {'time': time.time(), 'status': 'approved'}
+                approved_users[user_id] = {'time': asyncio.get_event_loop().time(), 'status': 'approved'}
                 del pending_payments[user_id]
 
-                keyboard = InlineKeyboardMarkup([[ 
+                keyboard = InlineKeyboardMarkup([[
                     InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}"),
                     InlineKeyboardButton("🍎 آيفون", callback_data=f"device_ios_{user_id}")
                 ]])
 
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text="✅ تم قبول الدفع.\nاختر نوع جهازك:",
-                    reply_markup=keyboard
-                )
-                await query.edit_message_caption(f"✅ تم قبول دفع المستخدم {user_id}")
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="✅ تم قبول الدفع.\nاختر نوع جهازك:",
+                        reply_markup=keyboard
+                    )
+                except Exception as e:
+                    print(f"❌ لم يتم إرسال الرسالة للمستخدم: {e}")
 
+                await query.edit_message_text(f"✅ تم قبول دفع المستخدم {user_id}")
+
+        # ❌ الرفض
         elif data.startswith("reject_"):
+            await query.answer()
             user_id = int(data.split("_")[1])
+
             if user_id in pending_payments:
                 del pending_payments[user_id]
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text="❌ تم رفض إيصال الدفع.\nيرجى التحقق وإعادة المحاولة."
-                )
-                await query.edit_message_caption(f"🚫 تم رفض دفع المستخدم {user_id}")
 
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="❌ تم رفض إيصال الدفع.\nيرجى التحقق وإعادة المحاولة."
+                    )
+                except Exception as e:
+                    print(f"❌ لم يتم إرسال رسالة الرفض: {e}")
+
+                await query.edit_message_text(f"🚫 تم رفض دفع المستخدم {user_id}")
+
+        # اختيار الجهاز
         elif data.startswith("device_"):
+            await query.answer()
             _, device, user_id = data.split("_")
             user_id = int(user_id)
 
@@ -125,7 +141,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await context.bot.send_message(chat_id=user_id, text="🎯 اختر اللعبة:", reply_markup=keyboard)
 
+        # اختيار اللعبة
         elif data.startswith("game_"):
+            await query.answer()
             _, game, device, user_id = data.split("_")
             user_id = int(user_id)
 
@@ -179,7 +197,6 @@ async def main():
 # ========================
 # التشغيل الرئيسي
 if __name__ == "__main__":
-    import sys, signal
     try:
         signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
         signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
