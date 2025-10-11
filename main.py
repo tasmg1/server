@@ -3,16 +3,12 @@ import asyncio
 import aiohttp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, filters, ContextTypes
 )
 
 # ========================
-TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
+TOKEN = "ضع_توكن_البوت_هنا"
 ADMIN_CHAT_ID = 1077911771
 SERVER_URL = "https://gfdbgta.pythonanywhere.com"
 
@@ -23,10 +19,10 @@ approved_users = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = (
         "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
-        "⚠️ التحميل بعد الدفع:\n"
+        "🎮 الألعاب المتاحة بعد الدفع:\n"
         "1️⃣ The Challenge\n"
         "2️⃣ Chicken Life\n\n"
-        "💳 طريقة الدفع: تحويل المبلغ إلى بطاقة ماستر كارد:\n"
+        "💳 طريقة الدفع: تحويل المبلغ إلى البطاقة:\n"
         "<code>7113282938</code>\n\n"
         "📩 بعد الدفع، أرسل صورة إيصال الدفع هنا.\n"
         "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد.\n"
@@ -103,7 +99,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if download_url:
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لمرة واحدة خلال 10 ثوانٍ."
+                            text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لـ 3 مرات خلال 30 ثانية."
                         )
                         del approved_users[user_id]
                     else:
