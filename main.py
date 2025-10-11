@@ -1,8 +1,15 @@
 import os
 import asyncio
 import aiohttp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters
+)
 
 # ========================
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
@@ -96,7 +103,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if download_url:
                         await context.bot.send_message(
                             chat_id=user_id,
-                            text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لمرة واحدة خلال 10 ثواني."
+                            text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لمرة واحدة خلال 10 ثوانٍ."
                         )
                         del approved_users[user_id]
                     else:
@@ -113,7 +120,7 @@ if __name__ == "__main__":
     application.add_handler(CallbackQueryHandler(button_handler))
 
     port = int(os.environ.get("PORT", 5000))
-    railway_url = os.environ.get("RAILWAY_STATIC_URL")  # ضع هنا رابط مشروعك على Railway إذا متوفر
+    railway_url = os.environ.get("RAILWAY_STATIC_URL")
     webhook_url = f"{railway_url}/{TOKEN}" if railway_url else None
 
     if webhook_url:
