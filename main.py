@@ -1,14 +1,17 @@
 import os
 import asyncio
+import aiohttp
 from flask import Flask, request
 from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import aiohttp
 
 # ========================
-TOKEN = os.environ.get("BOT_TOKEN")
-ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "1077911771"))
-SERVER_URL = os.environ.get("SERVER_URL", "http://127.0.0.1:8080")
+# توكن البوت (ضع هنا توكن البوت الخاص بك)
+TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
+ADMIN_CHAT_ID = 1077911771
+
+# رابط سيرفر التحميل المؤقت
+SERVER_URL = "https://gfdbgta.pythonanywhere.com"
 
 bot = Bot(TOKEN)
 app = Flask(__name__)
@@ -33,6 +36,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
+# ========================
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file_id = update.message.photo[-1].file_id
@@ -51,6 +55,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text("📩 تم استلام الإيصال وسيتم مراجعته قريبًا.")
 
+# ========================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -122,7 +127,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"❌ خطأ في طلب الرابط: {e}")
 
 # ========================
-# Webhook route
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), bot)
