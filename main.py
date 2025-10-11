@@ -1,22 +1,14 @@
 import os
 import asyncio
 import aiohttp
-from flask import Flask, request
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
 # ========================
-# توكن البوت (ضع هنا توكن البوت الخاص بك)
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
-
-# رابط سيرفر التحميل المؤقت
 SERVER_URL = "https://gfdbgta.pythonanywhere.com"
 
-bot = Bot(TOKEN)
-app = Flask(__name__)
-
-# ========================
 pending_payments = {}
 approved_users = {}
 
@@ -27,11 +19,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ التحميل بعد الدفع:\n"
         "1️⃣ The Challenge\n"
         "2️⃣ Chicken Life\n\n"
-        "💳 <b>طريقة الدفع:</b>\n"
-        " تحويل المبلغ إلى بطاقة <b>ماستر كارد</b>:\n"
+        "💳 طريقة الدفع: تحويل المبلغ إلى بطاقة ماستر كارد:\n"
         "<code>7113282938</code>\n\n"
         "📩 بعد الدفع، أرسل صورة إيصال الدفع هنا.\n"
-        "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد حالياً.\n"
+        "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد.\n"
         "📞 للتواصل: <a href='https://www.instagram.com/ta_smg'>اضغط هنا</a>"
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
@@ -66,25 +57,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id in pending_payments:
             approved_users[user_id] = True
             del pending_payments[user_id]
-
-            keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}")
-            ]])
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="✅ تم قبول الدفع! اختر نوع جهازك:",
-                reply_markup=keyboard
-            )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}")]])
+            await context.bot.send_message(chat_id=user_id, text="✅ تم قبول الدفع! اختر نوع جهازك:", reply_markup=keyboard)
             await query.edit_message_caption(f"✅ تم قبول الدفع للمستخدم: {user_id}")
 
     elif data.startswith("reject_"):
         user_id = int(data.split("_")[1])
         if user_id in pending_payments:
             del pending_payments[user_id]
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="❌ تم رفض إيصال الدفع. يرجى التواصل معنا للتحقق."
-            )
+            await context.bot.send_message(chat_id=user_id, text="❌ تم رفض إيصال الدفع.")
             await query.edit_message_caption(f"❌ تم رفض الدفع للمستخدم: {user_id}")
 
     elif data.startswith("device_"):
@@ -93,7 +74,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user_id not in approved_users:
             await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
             return
-
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{user_id}_{device}"),
             InlineKeyboardButton("🐔 Chicken Life", callback_data=f"game_chickenlife_{user_id}_{device}")
@@ -108,7 +88,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         payload = {"user_id": str(user_id), "game": game_name}
-
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"{SERVER_URL}/generate_link", json=payload) as resp:
@@ -127,20 +106,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"❌ خطأ في طلب الرابط: {e}")
 
 # ========================
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    asyncio.run(handle_update(update))
-    return "ok"
-
-async def handle_update(update):
-    application = await ApplicationBuilder().token(TOKEN).build()
+if __name__ == "__main__":
+    application = ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(button_handler))
-    await application.process_update(update)
 
-# ========================
-if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    railway_url = os.environ.get("RAILWAY_STATIC_URL")  # ضع هنا رابط مشروعك على Railway إذا متوفر
+    webhook_url = f"{railway_url}/{TOKEN}" if railway_url else None
+
+    if webhook_url:
+        print(f"🚀 Setting webhook: {webhook_url}")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=port,
+            url_path=TOKEN,
+            webhook_url=webhook_url
+        )
+    else:
+        print("⚠️ Webhook URL not found, using polling")
+        asyncio.run(application.run_polling())
