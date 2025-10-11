@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 
 # ========================
-TOKEN = "ضع_توكن_البوت_هنا"
+TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
 SERVER_URL = "https://gfdbgta.pythonanywhere.com"
 
