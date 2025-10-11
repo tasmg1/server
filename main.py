@@ -1,24 +1,23 @@
+import os
 import asyncio
+from flask import Flask, request
+from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 import aiohttp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    filters,
-    ContextTypes
-)
 
-TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
-ADMIN_CHAT_ID = 1077911771
+# ========================
+TOKEN = os.environ.get("BOT_TOKEN")
+ADMIN_CHAT_ID = int(os.environ.get("ADMIN_CHAT_ID", "1077911771"))
+SERVER_URL = os.environ.get("SERVER_URL", "http://127.0.0.1:8080")
 
-pending_payments = {}  # المستخدمون الذين أرسلوا إيصال
-approved_users = {}    # المستخدمون الذين تم قبول دفعهم
+bot = Bot(TOKEN)
+app = Flask(__name__)
 
-SERVER_URL = "http://127.0.0.1:8080"  # ضع هنا رابط سيرفرك إذا خارجي
+# ========================
+pending_payments = {}
+approved_users = {}
 
-# رسالة /start
+# ========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = (
         "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
@@ -34,18 +33,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
-# استقبال صورة الإيصال
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file_id = update.message.photo[-1].file_id
     pending_payments[user_id] = file_id
 
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ قبول", callback_data=f"approve_{user_id}"),
-            InlineKeyboardButton("❌ رفض", callback_data=f"reject_{user_id}")
-        ]
-    ])
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ قبول", callback_data=f"approve_{user_id}"),
+        InlineKeyboardButton("❌ رفض", callback_data=f"reject_{user_id}")
+    ]])
 
     await context.bot.send_photo(
         chat_id=ADMIN_CHAT_ID,
@@ -55,7 +51,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text("📩 تم استلام الإيصال وسيتم مراجعته قريبًا.")
 
-# التعامل مع أزرار البوت
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -76,6 +71,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=keyboard
             )
             await query.edit_message_caption(f"✅ تم قبول الدفع للمستخدم: {user_id}")
+
+    elif data.startswith("reject_"):
+        user_id = int(data.split("_")[1])
+        if user_id in pending_payments:
+            del pending_payments[user_id]
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ تم رفض إيصال الدفع. يرجى التواصل معنا للتحقق."
+            )
+            await query.edit_message_caption(f"❌ تم رفض الدفع للمستخدم: {user_id}")
 
     elif data.startswith("device_"):
         _, device, user_id = data.split("_")
@@ -99,24 +104,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         payload = {"user_id": str(user_id), "game": game_name}
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{SERVER_URL}/generate_link", json=payload) as resp:
-                resp_data = await resp.json()
-                download_url = resp_data.get("download_url")
-                if download_url:
-                    await context.bot.send_message(
-                        chat_id=user_id,
-                        text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لمرة واحدة خلال 10 ثواني."
-                    )
-                    del approved_users[user_id]
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{SERVER_URL}/generate_link", json=payload) as resp:
+                    resp_data = await resp.json()
+                    download_url = resp_data.get("download_url")
+                    if download_url:
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text=f"🔗 رابط تحميل {game_name.replace('thechallenge','The Challenge').replace('chickenlife','Chicken Life')}:\n{download_url}\n⚠️ صالح لمرة واحدة خلال 10 ثواني."
+                        )
+                        del approved_users[user_id]
+                    else:
+                        await context.bot.send_message(chat_id=user_id, text="❌ فشل توليد رابط التحميل.")
+        except Exception as e:
+            await context.bot.send_message(chat_id=user_id, text="⚠️ فشل الاتصال بسيرفر التحميل.")
+            print(f"❌ خطأ في طلب الرابط: {e}")
 
-# تشغيل البوت
-async def main():
-    application = ApplicationBuilder().token(TOKEN).build()
+# ========================
+# Webhook route
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    asyncio.run(handle_update(update))
+    return "ok"
+
+async def handle_update(update):
+    application = await ApplicationBuilder().token(TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(button_handler))
-    await application.run_polling(drop_pending_updates=True)
+    await application.process_update(update)
 
+# ========================
 if __name__ == "__main__":
-    asyncio.run(main())
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
