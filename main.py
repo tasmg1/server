@@ -5,6 +5,7 @@ import signal
 import asyncio
 import aiohttp
 import nest_asyncio
+import socket
 
 from datetime import datetime
 from threading import Thread
@@ -21,18 +22,24 @@ from telegram.ext import (
 )
 
 # ========================
-# تشغيل سيرفر Flask بسيط للحفاظ على البوت حي (مثلاً على Replit)
+# سيرفر Flask صغير للحفاظ على البوت حي
 app = Flask('')
 
 @app.route('/')
 def home():
     return "✅ Bot is alive and running!"
 
-def run():
-    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+def run_flask():
+    # اختيار أي منفذ حر تلقائيًا
+    sock = socket.socket()
+    sock.bind(("", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    print(f"✅ Flask server running on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 def keep_alive():
-    t = Thread(target=run)
+    t = Thread(target=run_flask)
     t.daemon = True
     t.start()
 
