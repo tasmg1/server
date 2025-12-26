@@ -114,7 +114,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=user_id,
                     text="✅ تم قبول الدفع بنجاح!\n\n📲 يرجى اختيار نوع جهازك لتحصل على رابط التحميل:",
                     reply_markup=keyboard
-                ) await query.edit_message_caption(
+                )
+                await query.edit_message_caption(
                     f"✅ تم قبول الدفع.\n"
                     f"👤 الاسم: {username}\n"
                     f"🆔 المعرف: {user_id}\n"
@@ -184,7 +185,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "user_id": str(user_id),
                 "device": device_code,
                 "game": game_name.lower()
-            } try:
+            }
+            try:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
                         "https://gfdbgta.pythonanywhere.com/generate_link",
