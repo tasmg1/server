@@ -58,7 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚠️ أقل مبلغ للدفع هو IQD 1000.\n\n"
         "📩 بعد الدفع، أرسل صورة إيصال الدفع هنا.\n"
         "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد حالياً.\n"
-        "📞 للتواصل أو الدعم: <a href='https://www.instagram.com/p1ay.zone?igsh=MW9uYTB1dTZxZnpocQ%3D%3D&utm_source=qr'>اضغط هنا للتواصل عبر إنستغرام</a>"
+        "📞 للتواصل أو الدعم: <a href='https://instagram.com/p1ay.zone'>اضغط هنا للتواصل عبر إنستغرام</a>"
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
