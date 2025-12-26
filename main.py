@@ -21,7 +21,7 @@ from telegram.ext import (
 )
 
 # ========================
-# تشغيل سيرفر Flask بسيط للحفاظ على البوت حي (مثلاً على Replit)
+# تشغيل سيرفر Flask بسيط للحفاظ على البوت حي
 app = Flask('')
 
 @app.route('/')
@@ -41,10 +41,10 @@ def keep_alive():
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 ADMIN_CHAT_ID = 1077911771
 
-pending_payments = {}  # المستخدمون الذين أرسلوا إيصال
-approved_users = {}    # المستخدمون الذين تم قبول دفعهم
+pending_payments = {}
+approved_users = {}
 
-# رسالة /start مع شرح طريقة الدفع
+# رسالة /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = (
         "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
@@ -62,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(welcome, parse_mode="HTML")
 
-# استقبال صورة الإيصال من المستخدم
+# استقبال صورة الإيصال
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     file_id = update.message.photo[-1].file_id
@@ -75,7 +75,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-    # إرسال الإيصال إلى الأدمن مع أزرار قبول أو رفض
     await context.bot.send_photo(
         chat_id=ADMIN_CHAT_ID,
         photo=file_id,
@@ -92,7 +91,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         data = query.data
 
-        # قبول الدفع من الأدمن
         if data.startswith("approve_"):
             user_id = int(data.split("_")[1])
             if user_id in pending_payments:
@@ -115,7 +113,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     text="✅ تم قبول الدفع بنجاح!\n\n📲 يرجى اختيار نوع جهازك لتحصل على رابط التحميل:",
                     reply_markup=keyboard
                 )
-
                 await query.edit_message_caption(
                     f"✅ تم قبول الدفع.\n"
                     f"👤 الاسم: {username}\n"
@@ -126,7 +123,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-        # رفض الدفع من الأدمن
         elif data.startswith("reject_"):
             user_id = int(data.split("_")[1])
             if user_id in pending_payments:
@@ -150,7 +146,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-        # اختيار نوع الجهاز
         elif data.startswith("device_"):
             _, device_code, user_id = data.split("_")
             user_id = int(user_id)
@@ -159,7 +154,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
-            # لوحة اختيار اللعبة
             game_selection_keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{device_code}_{user_id}"),
@@ -173,7 +167,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=game_selection_keyboard
             )
 
-        # اختيار اللعبة وطلب رابط تحميل مؤقت من السيرفر
         elif data.startswith("game_"):
             _, game_name, device_code, user_id = data.split("_")
             user_id = int(user_id)
@@ -182,10 +175,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
                 return
 
+            device_id = f"{user_id}_{device_code}"  # معرف فريد لكل مستخدم + الجهاز
+
             payload = {
-                "user_id": str(user_id),
-                "device": device_code,
-                "game": game_name.lower()
+                "game": game_name.lower(),
+                "device_id": device_id
             }
 
             try:
