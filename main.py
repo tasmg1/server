@@ -1,83 +1,194 @@
-import sqlite3
-import hmac
-import hashlib
+import sys
+import time
+import signal
+import asyncio
 import aiohttp
+import nest_asyncio
+from datetime import datetime
+from threading import Thread
+from flask import Flask
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-
-# =========================
-TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
-SERVER_HOST = "https://gfdbgta.pythonanywhere.com"
-SECRET_KEY = b"ta_smg#F9!KX7@R2$wZ%M8^"
-
-# =========================
-# DATABASE
-db = sqlite3.connect("db.sqlite", check_same_thread=False)
-db.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
-    game TEXT,
-    device_id TEXT,
-    downloads INTEGER DEFAULT 0
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters
 )
-""")
-db.commit()
 
-# =========================
-# HELPERS
-def sign(user_id, game):
-    return hmac.new(SECRET_KEY, f"{user_id}:{game}".encode(), hashlib.sha256).hexdigest()
+# ========================
+# Flask keep alive (لـ Replit / PythonAnywhere)
+app = Flask(__name__)
 
-# =========================
-# BOT HANDLERS
+@app.route("/")
+def home():
+    return "✅ Bot is alive and running!"
+
+def run():
+    app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.daemon = True
+    t.start()
+
+# ========================
+# إعدادات البوت
+TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"
+ADMIN_CHAT_ID = 1077911771
+
+SERVER_URL = "https://gfdbgta.pythonanywhere.com/generate_link"
+
+pending_payments = {}
+approved_users = {}
+
+# ========================
+# /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎮 The Challenge", callback_data="thechallenge")],
-        [InlineKeyboardButton("🐔 Chicken Life", callback_data="chickenlife")]
-    ])
-    await update.message.reply_text(
+    text = (
         "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
-        "⚠️ حالياً، الألعاب متوفرة فقط على أجهزة *الأندرويد*.\n"
-        "⚠️ التحميل مرتبط بجهازك فقط.\n"
-        "💳 بعد الدفع، اختر اللعبة لتحصل على الرابط.\n"
-        "📱 الرابط لن يعمل على جهاز آخر.\n\n"
-        "⬇ اختر اللعبة التي تريد تحميلها:",
-        parse_mode="Markdown",
-        reply_markup=kb
+        "🎮 الألعاب المتوفرة:\n"
+        "1️⃣ The Challenge\n"
+        "2️⃣ Chicken Life\n\n"
+        "💳 طريقة الدفع:\n"
+        "<code>7113282938</code>\n"
+        "⚠️ أقل مبلغ 1000 IQD\n\n"
+        "📩 بعد الدفع أرسل صورة الإيصال هنا\n\n"
+        "⚠️ رابط التحميل يكون صالح لمدة 30 ثانية فقط"
+    )
+    await update.message.reply_text(text, parse_mode="HTML")
+
+# ========================
+# استقبال صورة الإيصال
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    file_id = update.message.photo[-1].file_id
+
+    pending_payments[user_id] = file_id
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ قبول", callback_data=f"approve_{user_id}"),
+            InlineKeyboardButton("❌ رفض", callback_data=f"reject_{user_id}")
+        ]
+    ])
+
+    await context.bot.send_photo(
+        chat_id=ADMIN_CHAT_ID,
+        photo=file_id,
+        caption=f"🧾 إيصال دفع من المستخدم:\nID: {user_id}",
+        reply_markup=keyboard
     )
 
-async def choose_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📩 تم استلام الإيصال، بانتظار المراجعة.")
+
+# ========================
+# أزرار التحكم
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    game = query.data
-    user_id = str(query.from_user.id)
+    data = query.data
 
-    cur = db.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
-    if not cur.fetchone():
-        db.execute("INSERT INTO users(user_id, game) VALUES (?,?)", (user_id, game))
-        db.commit()
+    # قبول الدفع
+    if data.startswith("approve_"):
+        user_id = int(data.split("_")[1])
 
-    payload = {"user_id": user_id, "game": game, "signature": sign(user_id, game)}
+        if user_id not in pending_payments:
+            await query.edit_message_caption("⚠️ الإيصال غير موجود.")
+            return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(f"{SERVER_HOST}/authorize", json=payload) as r:
-            if r.status != 200:
-                await query.message.reply_text("❌ حدث خطأ أثناء إنشاء الرابط.")
-                return
-            data = await r.json()
+        approved_users[user_id] = True
+        pending_payments.pop(user_id, None)
 
-    await query.message.reply_text(
-        f"⬇ رابط تحميل لعبتك:\n{SERVER_HOST}{data['url']}\n\n⚠️ الرابط مرتبط بجهازك فقط."
-    )
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{user_id}"),
+                InlineKeyboardButton("🐔 Chicken Life", callback_data=f"game_chickenlife_{user_id}")
+            ]
+        ])
 
-# =========================
-# MAIN
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(choose_game))
-    print("🤖 البوت يعمل الآن...")
-    app.run_polling(drop_pending_updates=True)
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="✅ تم قبول الدفع\n\nاختر اللعبة:",
+            reply_markup=keyboard
+        )
 
+        await query.edit_message_caption("✅ تم قبول الدفع.")
+
+    # رفض الدفع
+    elif data.startswith("reject_"):
+        user_id = int(data.split("_")[1])
+        pending_payments.pop(user_id, None)
+
+        await context.bot.send_message(
+            chat_id=user_id,
+            text="❌ تم رفض الإيصال، يرجى المحاولة مرة أخرى."
+        )
+
+        await query.edit_message_caption("🚫 تم رفض الدفع.")
+
+    # اختيار اللعبة
+    elif data.startswith("game_"):
+        _, game, user_id = data.split("_")
+        user_id = int(user_id)
+
+        if user_id not in approved_users:
+            await context.bot.send_message(chat_id=user_id, text="❌ غير مصرح.")
+            return
+
+        payload = {
+            "game": game
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(SERVER_URL, json=payload) as resp:
+                    data = await resp.json()
+                    link = data.get("download_url")
+
+                    if link:
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text=(
+                                f"🔗 رابط التحميل:\n{link}\n\n"
+                                "⏰ صالح لمدة 30 ثانية فقط"
+                            )
+                        )
+                        approved_users.pop(user_id, None)
+                    else:
+                        await context.bot.send_message(
+                            chat_id=user_id,
+                            text="❌ فشل إنشاء الرابط."
+                        )
+
+        except Exception as e:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="⚠️ خطأ في الاتصال بالسيرفر."
+            )
+            print(e)
+
+# ========================
+# تشغيل البوت
+async def main():
+    application = ApplicationBuilder().token(TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(CallbackQueryHandler(button_handler))
+
+    print("🤖 Bot is running...")
+    await application.run_polling(drop_pending_updates=True)
+
+# ========================
+# entry point
 if __name__ == "__main__":
-    main()
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+
+    keep_alive()
+    nest_asyncio.apply()
+
+    asyncio.run(main())
