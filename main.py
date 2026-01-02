@@ -2,7 +2,7 @@ import hmac, hashlib, aiohttp, asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-TOKEN = "ضع_توكنك_هنا"
+TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 SERVER = "https://gfdbgta.pythonanywhere.com"
 SECRET_KEY = b"9fA7Q!mZx3E@H8K$2vD#CwLJ6T%R^yP&U*B4aS"
 
