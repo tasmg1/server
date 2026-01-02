@@ -1,8 +1,10 @@
 # =========================
-# IMPORTS
+# bot.py
 # =========================
 import asyncio
 import aiohttp
+import hmac
+import hashlib
 import sqlite3
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -13,11 +15,6 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
 SERVER_HOST = "https://gfdbgta.pythonanywhere.com"
 SECRET_KEY = b"ta_smg#F9!KX7@R2$wZ%M8^"
-
-DOWNLOAD_LINKS = {
-    "thechallenge": "https://www.dropbox.com/scl/fi/3erw8rjjv3gcx01op7iu0/The-Challenge.apk?dl=1",
-    "chickenlife": "https://www.dropbox.com/scl/fi/0v4lovtvvlxsuezu3jerh/Chicken-Life.apk?dl=1"
-}
 
 # =========================
 # DATABASE SETUP
@@ -34,14 +31,13 @@ CREATE TABLE IF NOT EXISTS users (
 db.commit()
 
 # =========================
-# HELPER FUNCTIONS
+# HELPERS
 # =========================
-import hmac, hashlib
 def sign(user_id, game):
     return hmac.new(SECRET_KEY, f"{user_id}:{game}".encode(), hashlib.sha256).hexdigest()
 
 # =========================
-# TELEGRAM BOT
+# TELEGRAM BOT HANDLERS
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
@@ -62,13 +58,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def choose_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     game = query.data
     user_id = str(query.from_user.id)
 
+    # سجل المستخدم في قاعدة البيانات إذا لم يكن موجودًا
     cur = db.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     if not cur.fetchone():
-        db.execute("INSERT INTO users(user_id, game) VALUES (?, ?)", (user_id, game))
+        db.execute("INSERT INTO users(user_id, game) VALUES (?,?)", (user_id, game))
         db.commit()
 
     payload = {"user_id": user_id, "game": game, "signature": sign(user_id, game)}
@@ -85,12 +81,8 @@ async def choose_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # =========================
 if __name__ == "__main__":
-    import nest_asyncio
-    nest_asyncio.apply()
-
     app_bot = ApplicationBuilder().token(TOKEN).build()
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(choose_game))
-
     print("🤖 البوت يعمل الآن...")
     asyncio.run(app_bot.run_polling(drop_pending_updates=True))
