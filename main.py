@@ -1,19 +1,17 @@
-import asyncio
-import aiohttp
+import sqlite3
 import hmac
 import hashlib
-import sqlite3
+import aiohttp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # =========================
-# CONFIGURATION
 TOKEN = "7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk"
-SERVER_HOST = "https://gfdbgta.pythonanywhere.com"  # رابط السيرفر عند النشر
+SERVER_HOST = "https://gfdbgta.pythonanywhere.com"
 SECRET_KEY = b"ta_smg#F9!KX7@R2$wZ%M8^"
 
 # =========================
-# DATABASE SETUP
+# DATABASE
 db = sqlite3.connect("db.sqlite", check_same_thread=False)
 db.execute("""
 CREATE TABLE IF NOT EXISTS users (
@@ -31,7 +29,7 @@ def sign(user_id, game):
     return hmac.new(SECRET_KEY, f"{user_id}:{game}".encode(), hashlib.sha256).hexdigest()
 
 # =========================
-# TELEGRAM BOT HANDLERS
+# BOT HANDLERS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎮 The Challenge", callback_data="thechallenge")],
@@ -63,6 +61,9 @@ async def choose_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     async with aiohttp.ClientSession() as session:
         async with session.post(f"{SERVER_HOST}/authorize", json=payload) as r:
+            if r.status != 200:
+                await query.message.reply_text("❌ حدث خطأ أثناء إنشاء الرابط.")
+                return
             data = await r.json()
 
     await query.message.reply_text(
@@ -71,9 +72,12 @@ async def choose_game(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # =========================
 # MAIN
-if __name__ == "__main__":
-    app_bot = ApplicationBuilder().token(TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(choose_game))
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(choose_game))
     print("🤖 البوت يعمل الآن...")
-    asyncio.run(app_bot.run_polling(drop_pending_updates=True))
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()
