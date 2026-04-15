@@ -34,7 +34,7 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
+TOKEN = os.environ.get("8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0")
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
