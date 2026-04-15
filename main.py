@@ -1,15 +1,8 @@
 import os
-import sys
 import time
-import signal
-import asyncio
 import aiohttp
-import nest_asyncio
 
 from datetime import datetime
-from threading import Thread
-from flask import Flask
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -20,21 +13,7 @@ from telegram.ext import (
     filters
 )
 
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "✅ Bot is alive and running!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
-
-TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
+TOKEN = "8721383387:AAQhE9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
@@ -86,6 +65,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if data.startswith("approve_"):
             user_id = int(data.split("_")[1])
+
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
@@ -119,6 +99,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif data.startswith("reject_"):
             user_id = int(data.split("_")[1])
+
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
@@ -183,6 +164,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ) as resp:
                         resp_data = await resp.json()
                         download_url = resp_data.get("download_url")
+
                         if download_url:
                             await context.bot.send_message(
                                 chat_id=user_id,
@@ -199,6 +181,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 chat_id=user_id,
                                 text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
                             )
+
             except Exception as e:
                 await context.bot.send_message(
                     chat_id=user_id,
@@ -213,31 +196,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-async def main():
-    try:
-        application = ApplicationBuilder().token(TOKEN).build()
 
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-        application.add_handler(CallbackQueryHandler(button_handler))
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
-        print("🤖 البوت يعمل الآن...")
-        await application.run_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f"❌ خطأ في تشغيل البوت: {e}")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    print("🤖 البوت يعمل الآن...")
+    app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
-    try:
-        signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
-        signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
-
-        keep_alive()
-        nest_asyncio.apply()
-
-        print("🚀 بدء تشغيل البوت...")
-        asyncio.run(main())
-
-    except KeyboardInterrupt:
-        print("🛑 تم إيقاف البوت بواسطة المستخدم")
-    except Exception as e:
-        print(f"❌ خطأ عام: {e}")
+    main()
