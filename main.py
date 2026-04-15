@@ -1,8 +1,12 @@
 import os
+import sys
 import time
+import signal
+import asyncio
 import aiohttp
 
 from datetime import datetime
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -13,7 +17,7 @@ from telegram.ext import (
     filters
 )
 
-TOKEN = "8721383387:AAQhE9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
+TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
@@ -65,7 +69,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if data.startswith("approve_"):
             user_id = int(data.split("_")[1])
-
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
@@ -99,7 +102,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif data.startswith("reject_"):
             user_id = int(data.split("_")[1])
-
             if user_id in pending_payments:
                 user = await context.bot.get_chat(user_id)
                 username = user.full_name
@@ -164,7 +166,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ) as resp:
                         resp_data = await resp.json()
                         download_url = resp_data.get("download_url")
-
                         if download_url:
                             await context.bot.send_message(
                                 chat_id=user_id,
@@ -181,7 +182,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 chat_id=user_id,
                                 text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
                             )
-
             except Exception as e:
                 await context.bot.send_message(
                     chat_id=user_id,
@@ -198,15 +198,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    app.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(CallbackQueryHandler(button_handler))
 
     print("🤖 البوت يعمل الآن...")
-    app.run_polling(drop_pending_updates=True)
+    application.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
+        signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
+
+        print("🚀 بدء تشغيل البوت...")
+        main()
+
+    except KeyboardInterrupt:
+        print("🛑 تم إيقاف البوت بواسطة المستخدم")
+    except Exception as e:
+        print(f"❌ خطأ عام: {e}")
