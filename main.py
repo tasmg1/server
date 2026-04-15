@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import signal
 import asyncio
 import aiohttp
 
@@ -166,6 +165,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ) as resp:
                         resp_data = await resp.json()
                         download_url = resp_data.get("download_url")
+
                         if download_url:
                             await context.bot.send_message(
                                 chat_id=user_id,
@@ -182,6 +182,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 chat_id=user_id,
                                 text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
                             )
+
             except Exception as e:
                 await context.bot.send_message(
                     chat_id=user_id,
@@ -205,18 +206,9 @@ def main():
     application.add_handler(CallbackQueryHandler(button_handler))
 
     print("🤖 البوت يعمل الآن...")
-    application.run_polling(drop_pending_updates=True)
+    application.run_polling(drop_pending_updates=True, close_loop=False)
 
 
 if __name__ == "__main__":
-    try:
-        signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
-        signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
-
-        print("🚀 بدء تشغيل البوت...")
-        main()
-
-    except KeyboardInterrupt:
-        print("🛑 تم إيقاف البوت بواسطة المستخدم")
-    except Exception as e:
-        print(f"❌ خطأ عام: {e}")
+    print("🚀 بدء تشغيل البوت...")
+    main()
