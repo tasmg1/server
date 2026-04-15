@@ -21,7 +21,7 @@ from telegram.ext import (
 # =========================
 # إعدادات البوت
 # =========================
-TOKEN = os.getenv("8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0")  # ✔ تعديل مهم فقط
+TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"  # ✔ تعديل مهم فقط
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
