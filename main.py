@@ -34,7 +34,8 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
+# 🔐 استخدم Environment Variables بدل كتابة التوكن
+TOKEN = os.environ.get("8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0")
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
@@ -183,28 +184,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ) as resp:
                         resp_data = await resp.json()
                         download_url = resp_data.get("download_url")
+
                         if download_url:
                             await context.bot.send_message(
                                 chat_id=user_id,
-                                text=(
-                                    f"🔗 رابط تحميل لعبة "
-                                    f"{game_name.replace('thechallenge', 'The Challenge').replace('chickenlife', 'Chicken Life')}:\n"
-                                    f"{download_url}\n\n"
-                                    "⚠️ صالح لمدة 30 ثانية فقط."
-                                )
+                                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح لمدة 30 ثانية فقط."
                             )
                             del approved_users[user_id]
                         else:
                             await context.bot.send_message(
                                 chat_id=user_id,
-                                text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
+                                text="❌ فشل توليد رابط التحميل."
                             )
             except Exception as e:
                 await context.bot.send_message(
                     chat_id=user_id,
                     text="⚠️ فشل الاتصال بسيرفر التحميل."
                 )
-                print(f"❌ خطأ في توليد الرابط المؤقت: {e}")
+                print(f"❌ خطأ: {e}")
 
     except Exception as e:
         print(f"❌ خطأ في button_handler: {e}")
@@ -223,6 +220,7 @@ async def main():
 
         print("🤖 البوت يعمل الآن...")
         await application.run_polling(drop_pending_updates=True)
+
     except Exception as e:
         print(f"❌ خطأ في تشغيل البوت: {e}")
 
@@ -238,6 +236,6 @@ if __name__ == "__main__":
         asyncio.run(main())
 
     except KeyboardInterrupt:
-        print("🛑 تم إيقاف البوت بواسطة المستخدم")
+        print("🛑 تم إيقاف البوت")
     except Exception as e:
         print(f"❌ خطأ عام: {e}")
