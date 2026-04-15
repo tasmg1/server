@@ -20,7 +20,7 @@ from telegram.ext import (
 # CONFIGURATION
 # ==========================
 TOKEN = os.getenv("7886094616:AAE15btVEobgTi0Xo4i87X416dquNAfCLQk")  # احفظ التوكن في Environment Variable
-ADMIN_ID = 1077911771
+ADMIN_ID = 8569699093
 SERVER_URL = "https://gfdbgta.pythonanywhere.com/generate_link"
 APPROVAL_DURATION_MINUTES = 10
 
