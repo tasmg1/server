@@ -3,7 +3,7 @@ import sys
 import time
 import signal
 import asyncio
-import aiohttp
+import requests
 import nest_asyncio
 
 from datetime import datetime
@@ -34,8 +34,7 @@ def keep_alive():
     t.daemon = True
     t.start()
 
-# 🔐 استخدم Environment Variables بدل كتابة التوكن
-TOKEN = os.environ.get("8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0")
+TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
 ADMIN_CHAT_ID = 8569699093
 
 pending_payments = {}
@@ -177,25 +176,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
 
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        "https://gfdbgta.pythonanywhere.com/generate_link",
-                        json=payload
-                    ) as resp:
-                        resp_data = await resp.json()
-                        download_url = resp_data.get("download_url")
+                resp = requests.post(
+                    "https://gfdbgta.pythonanywhere.com/generate_link",
+                    json=payload,
+                    timeout=10
+                )
+                resp_data = resp.json()
+                download_url = resp_data.get("download_url")
 
-                        if download_url:
-                            await context.bot.send_message(
-                                chat_id=user_id,
-                                text=f"🔗 رابط التحميل:\n{download_url}\n\n⚠️ صالح لمدة 30 ثانية فقط."
-                            )
-                            del approved_users[user_id]
-                        else:
-                            await context.bot.send_message(
-                                chat_id=user_id,
-                                text="❌ فشل توليد رابط التحميل."
-                            )
+                if download_url:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text=(
+                            f"🔗 رابط التحميل:\n{download_url}\n\n"
+                            "⚠️ صالح لمدة 30 ثانية فقط."
+                        )
+                    )
+                    del approved_users[user_id]
+                else:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="❌ فشل توليد رابط التحميل."
+                    )
+
             except Exception as e:
                 await context.bot.send_message(
                     chat_id=user_id,
