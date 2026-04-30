@@ -1,7 +1,14 @@
-import os
+ import os
+import sys
+import time
+import signal
 import asyncio
 import aiohttp
-import sqlite3
+import nest_asyncio
+
+from datetime import datetime
+from threading import Thread
+from flask import Flask
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -13,172 +20,224 @@ from telegram.ext import (
     filters
 )
 
-# ---------------- CONFIG ----------------
-TOKEN = os.getenv("8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0")
-ADMIN_ID = int(os.getenv("8569699093"))
+app = Flask('')
 
-# ---------------- DATABASE ----------------
-conn = sqlite3.connect("bot.db", check_same_thread=False)
-cursor = conn.cursor()
+@app.route('/')
+def home():
+    return "✅ Bot is alive and running!"
 
-cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
-cursor.execute("CREATE TABLE IF NOT EXISTS downloads (user_id INTEGER, game TEXT)")
-conn.commit()
+def run():
+    app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
 
-# ---------------- MEMORY ----------------
+def keep_alive():
+    t = Thread(target=run)
+    t.daemon = True
+    t.start()
+
+TOKEN = "8721383387:AAHeQ9Z1s3mIF6O6IdJFGR1DQ61bXS7hoU0"
+ADMIN_CHAT_ID = 8569699093
+
 pending_payments = {}
 approved_users = {}
 
-# ---------------- START ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
+    welcome = (
+        "👋 أهلاً بك في بوت تحميل الألعاب!\n\n"
+        "⚠️ التحميل بعد الدفع:\n"
+        "1️⃣ The Challenge\n"
+        "2️⃣ Chicken Life\n\n"
+        "💳 <b>طريقة الدفع:</b>\n"
+        " تحويل المبلغ إلى بطاقة <b>ماستر كارد</b>:\n"
+        "<code>7113282938</code>\n\n"
+        "⚠️ المبلغ غير محدد، لكن يجب الدفع أولاً.\n"
+        "⚠️ أقل مبلغ للدفع هو IQD 1000.\n\n"
+        "📩 بعد الدفع، أرسل صورة إيصال الدفع هنا.\n"
+        "⚠️ الألعاب متاحة فقط على أجهزة الأندرويد حالياً.\n"
+        "📞 للتواصل أو الدعم: <a href='https://instagram.com/p1ay.zone'>اضغط هنا للتواصل عبر إنستغرام</a>"
+    )
+    await update.message.reply_text(welcome, parse_mode="HTML")
 
-    cursor.execute("INSERT OR IGNORE INTO users VALUES (?)", (uid,))
-    conn.commit()
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    file_id = update.message.photo[-1].file_id
+    pending_payments[user_id] = file_id
 
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎮 الألعاب", callback_data="games")],
-        [InlineKeyboardButton("💳 الدفع", callback_data="pay")]
-    ])
-
-    await update.message.reply_text(
-        "🎮 Play Zone\n\nاختر خيار:",
-        reply_markup=keyboard
-    )
-
-# ---------------- PAYMENT INFO ----------------
-async def show_payment(update, context):
-    await context.bot.send_message(
-        chat_id=update.from_user.id,
-        text="💳 الدفع إلى:\n7113282938\n\n📩 بعد الدفع أرسل الإيصال"
-    )
-
-# ---------------- GAMES ----------------
-def games_keyboard(uid):
-    return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("The Challenge", callback_data=f"game_thechallenge_{uid}"),
-            InlineKeyboardButton("Chicken Life", callback_data=f"game_chickenlife_{uid}")
-        ]
-    ])
-
-# ---------------- PHOTO (RECEIPT) ----------------
-async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.message.from_user.id
-    file_id = update.message.photo[-1].file_id
-
-    pending_payments[uid] = file_id
-
-    kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("قبول", callback_data=f"ok_{uid}"),
-            InlineKeyboardButton("رفض", callback_data=f"no_{uid}")
+            InlineKeyboardButton("✅ قبول", callback_data=f"approve_{user_id}"),
+            InlineKeyboardButton("❌ رفض", callback_data=f"reject_{user_id}")
         ]
     ])
 
     await context.bot.send_photo(
-        ADMIN_ID,
+        chat_id=ADMIN_CHAT_ID,
         photo=file_id,
-        caption=f"طلب دفع من: {uid}",
-        reply_markup=kb
+        caption=f"مراجعة إيصال دفع من المستخدم: {user_id}",
+        reply_markup=keyboard
     )
 
-    await update.message.reply_text("تم استلام الإيصال")
+    await update.message.reply_text("📩 تم استلام الإيصال وسيتم مراجعته قريبًا.")
 
-# ---------------- BUTTONS ----------------
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    data = q.data
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        query = update.callback_query
+        await query.answer()
+        data = query.data
 
-    # الألعاب
-    if data == "games":
-        await context.bot.send_message(
-            q.from_user.id,
-            "🎮 اختر لعبة:",
-            reply_markup=games_keyboard(q.from_user.id)
-        )
+        if data.startswith("approve_"):
+            user_id = int(data.split("_")[1])
+            if user_id in pending_payments:
+                user = await context.bot.get_chat(user_id)
+                username = user.full_name
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # الدفع
-    elif data == "pay":
-        await show_payment(q, context)
+                approved_users[user_id] = {'approved_time': time.time(), 'status': 'approved'}
+                del pending_payments[user_id]
 
-    # قبول الدفع
-    elif data.startswith("ok_"):
-        uid = int(data.split("_")[1])
-        approved_users[uid] = True
-        pending_payments.pop(uid, None)
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📱 أندرويد", callback_data=f"device_android_{user_id}"),
+                        InlineKeyboardButton("🍎 آيفون", callback_data=f"device_ios_{user_id}")
+                    ]
+                ])
 
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Android", callback_data=f"dev_android_{uid}"),
-                InlineKeyboardButton("iOS", callback_data=f"dev_ios_{uid}")
-            ]
-        ])
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="✅ تم قبول الدفع بنجاح!\n\n📲 يرجى اختيار نوع جهازك لتحصل على رابط التحميل:",
+                    reply_markup=keyboard
+                )
 
-        await context.bot.send_message(uid, "تم التحقق من الدفع\nاختر الجهاز:", reply_markup=kb)
+                await query.edit_message_caption(
+                    f"✅ تم قبول الدفع.\n"
+                    f"👤 الاسم: {username}\n"
+                    f"🆔 المعرف: {user_id}\n"
+                    f"⏰ الوقت: {now_str}\n"
+                    "المستخدم في انتظار اختيار نوع الجهاز."
+                )
+            else:
+                await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-    # رفض الدفع
-    elif data.startswith("no_"):
-        uid = int(data.split("_")[1])
-        pending_payments.pop(uid, None)
-        await context.bot.send_message(uid, "لم يتم قبول الدفع")
+        elif data.startswith("reject_"):
+            user_id = int(data.split("_")[1])
+            if user_id in pending_payments:
+                user = await context.bot.get_chat(user_id)
+                username = user.full_name
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # الجهاز
-    elif data.startswith("dev_"):
-        _, device, uid = data.split("_")
-        uid = int(uid)
+                del pending_payments[user_id]
 
-        if uid not in approved_users:
-            return
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="❌ تم رفض إيصال الدفع.\n\n🔍 يرجى التحقق من المعلومات أو التواصل معنا:\n📱 https://instagram.com/p1ay.zone"
+                )
 
-        await context.bot.send_message(
-            uid,
-            "🎮 اختر اللعبة:",
-            reply_markup=games_keyboard(uid)
-        )
+                await query.edit_message_caption(
+                    f"🚫 تم رفض الدفع.\n"
+                    f"👤 الاسم: {username}\n"
+                    f"🆔 المعرف: {user_id}\n"
+                    f"⏰ الوقت: {now_str}"
+                )
+            else:
+                await query.edit_message_caption("⚠️ لم يتم العثور على إيصال لهذا المستخدم.")
 
-    # اللعبة
-    elif data.startswith("game_"):
-        _, game, uid = data.split("_")
-        uid = int(uid)
+        elif data.startswith("device_"):
+            _, device_code, user_id = data.split("_")
+            user_id = int(user_id)
 
-        if uid not in approved_users:
-            await context.bot.send_message(uid, "الدفع غير مكتمل")
-            return
+            if user_id not in approved_users:
+                await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
+                return
 
-        async with aiohttp.ClientSession() as s:
-            async with s.post(
-                "https://gfdbgta.pythonanywhere.com/generate_link",
-                json={
-                    "user_id": str(uid),
-                    "game": game
-                }
-            ) as r:
-                data = await r.json()
-                url = data.get("download_url")
+            game_selection_keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎮 The Challenge", callback_data=f"game_thechallenge_{device_code}_{user_id}"),
+                    InlineKeyboardButton("🐔 Chicken Life", callback_data=f"game_chickenlife_{device_code}_{user_id}")
+                ]
+            ])
 
-                if url:
-                    cursor.execute("INSERT INTO downloads VALUES (?,?)", (uid, game))
-                    conn.commit()
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="🎯 اختر اللعبة التي تريد تحميلها:",
+                reply_markup=game_selection_keyboard
+            )
 
-                    await context.bot.send_message(
-                        uid,
-                        f"🔗 رابط التحميل:\n{url}"
-                    )
+        elif data.startswith("game_"):
+            _, game_name, device_code, user_id = data.split("_")
+            user_id = int(user_id)
 
-                    approved_users.pop(uid, None)
+            if user_id not in approved_users:
+                await context.bot.send_message(chat_id=user_id, text="❌ لم يتم الموافقة على الدفع.")
+                return
 
-# ---------------- MAIN ----------------
+            payload = {
+                "user_id": str(user_id),
+                "device": device_code,
+                "game": game_name.lower()
+            }
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        "https://gfdbgta.pythonanywhere.com/generate_link",
+                        json=payload
+                    ) as resp:
+                        resp_data = await resp.json()
+                        download_url = resp_data.get("download_url")
+                        if download_url:
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text=(
+                                    f"🔗 رابط تحميل لعبة "
+                                    f"{game_name.replace('thechallenge', 'The Challenge').replace('chickenlife', 'Chicken Life')}:\n"
+                                    f"{download_url}\n\n"
+                                    "⚠️ صالح لمدة 30 ثانية فقط."
+                                )
+                            )
+                            del approved_users[user_id]
+                        else:
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text="❌ فشل توليد رابط التحميل. حاول مرة أخرى لاحقًا."
+                            )
+            except Exception as e:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="⚠️ فشل الاتصال بسيرفر التحميل."
+                )
+                print(f"❌ خطأ في توليد الرابط المؤقت: {e}")
+
+    except Exception as e:
+        print(f"❌ خطأ في button_handler: {e}")
+        try:
+            await query.edit_message_caption("❌ حدث خطأ أثناء معالجة الطلب.")
+        except:
+            pass
+
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    try:
+        application = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.PHOTO, photo))
-    app.add_handler(CallbackQueryHandler(buttons))
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        application.add_handler(CallbackQueryHandler(button_handler))
 
-    print("Play Zone Running...")
-    await app.run_polling()
+        print("🤖 البوت يعمل الآن...")
+        await application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"❌ خطأ في تشغيل البوت: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
+        signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
+
+        keep_alive()
+        nest_asyncio.apply()
+
+        print("🚀 بدء تشغيل البوت...")
+        asyncio.run(main())
+
+    except KeyboardInterrupt:
+        print("🛑 تم إيقاف البوت بواسطة المستخدم")
+    except Exception as e:
+        print(f"❌ خطأ عام: {e}")
