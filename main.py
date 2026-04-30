@@ -22,18 +22,12 @@ conn = sqlite3.connect("bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
-cursor.execute("CREATE TABLE IF NOT EXISTS games (name TEXT, code TEXT)")
-cursor.execute("CREATE TABLE IF NOT EXISTS downloads (user_id INTEGER, game_code TEXT)")
-conn.commit()
-
-# ألعابك
-cursor.execute("INSERT OR IGNORE INTO games VALUES ('The Challenge','thechallenge')")
-cursor.execute("INSERT OR IGNORE INTO games VALUES ('Chicken Life','chickenlife')")
+cursor.execute("CREATE TABLE IF NOT EXISTS downloads (user_id INTEGER, game TEXT)")
 conn.commit()
 
 # ---------------- MEMORY ----------------
-pending = {}
-approved = {}
+pending_payments = {}
+approved_users = {}
 
 # ---------------- START ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,31 +36,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor.execute("INSERT OR IGNORE INTO users VALUES (?)", (uid,))
     conn.commit()
 
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("الألعاب", callback_data="games")],
-        [InlineKeyboardButton("الدفع", callback_data="pay")]
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎮 الألعاب", callback_data="games")],
+        [InlineKeyboardButton("💳 الدفع", callback_data="pay")]
     ])
 
-    await update.message.reply_text("Play Zone\nاختر خيار:", reply_markup=kb)
-
-# ---------------- SHOW GAMES ----------------
-async def show_games(uid, context, device="android"):
-    cursor.execute("SELECT name, code FROM games")
-    games = cursor.fetchall()
-
-    buttons = [[InlineKeyboardButton(g[0], callback_data=f"game_{g[1]}_{device}_{uid}")]
-               for g in games]
-
-    await context.bot.send_message(
-        chat_id=uid,
-        text="قائمة الألعاب",
-        reply_markup=InlineKeyboardMarkup(buttons)
+    await update.message.reply_text(
+        "🎮 Play Zone\n\nاختر خيار:",
+        reply_markup=keyboard
     )
 
-# ---------------- PHOTO ----------------
+# ---------------- PAYMENT INFO ----------------
+async def show_payment(update, context):
+    await context.bot.send_message(
+        chat_id=update.from_user.id,
+        text="💳 الدفع إلى:\n7113282938\n\n📩 بعد الدفع أرسل الإيصال"
+    )
+
+# ---------------- GAMES ----------------
+def games_keyboard(uid):
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("The Challenge", callback_data=f"game_thechallenge_{uid}"),
+            InlineKeyboardButton("Chicken Life", callback_data=f"game_chickenlife_{uid}")
+        ]
+    ])
+
+# ---------------- PHOTO (RECEIPT) ----------------
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.message.from_user.id
-    pending[uid] = True
+    file_id = update.message.photo[-1].file_id
+
+    pending_payments[uid] = file_id
 
     kb = InlineKeyboardMarkup([
         [
@@ -75,7 +76,13 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ])
 
-    await context.bot.send_message(ADMIN_ID, f"دفع جديد من {uid}", reply_markup=kb)
+    await context.bot.send_photo(
+        ADMIN_ID,
+        photo=file_id,
+        caption=f"طلب دفع من: {uid}",
+        reply_markup=kb
+    )
+
     await update.message.reply_text("تم استلام الإيصال")
 
 # ---------------- BUTTONS ----------------
@@ -84,16 +91,23 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     data = q.data
 
+    # الألعاب
     if data == "games":
-        await show_games(q.from_user.id, context)
+        await context.bot.send_message(
+            q.from_user.id,
+            "🎮 اختر لعبة:",
+            reply_markup=games_keyboard(q.from_user.id)
+        )
 
+    # الدفع
     elif data == "pay":
-        await context.bot.send_message(q.from_user.id, "الدفع إلى: 7113282938")
+        await show_payment(q, context)
 
+    # قبول الدفع
     elif data.startswith("ok_"):
         uid = int(data.split("_")[1])
-        approved[uid] = True
-        pending.pop(uid, None)
+        approved_users[uid] = True
+        pending_payments.pop(uid, None)
 
         kb = InlineKeyboardMarkup([
             [
@@ -102,34 +116,44 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         ])
 
-        await context.bot.send_message(uid, "تم التحقق", reply_markup=kb)
+        await context.bot.send_message(uid, "تم التحقق من الدفع\nاختر الجهاز:", reply_markup=kb)
 
+    # رفض الدفع
     elif data.startswith("no_"):
         uid = int(data.split("_")[1])
-        pending.pop(uid, None)
-        await context.bot.send_message(uid, "لم يتم التحقق")
+        pending_payments.pop(uid, None)
+        await context.bot.send_message(uid, "لم يتم قبول الدفع")
 
+    # الجهاز
     elif data.startswith("dev_"):
         _, device, uid = data.split("_")
         uid = int(uid)
 
-        if uid not in approved:
+        if uid not in approved_users:
             return
 
-        await show_games(uid, context, device)
+        await context.bot.send_message(
+            uid,
+            "🎮 اختر اللعبة:",
+            reply_markup=games_keyboard(uid)
+        )
 
+    # اللعبة
     elif data.startswith("game_"):
-        _, game, device, uid = data.split("_")
+        _, game, uid = data.split("_")
         uid = int(uid)
 
-        if uid not in approved:
+        if uid not in approved_users:
             await context.bot.send_message(uid, "الدفع غير مكتمل")
             return
 
         async with aiohttp.ClientSession() as s:
             async with s.post(
                 "https://gfdbgta.pythonanywhere.com/generate_link",
-                json={"user_id": str(uid), "device": device, "game": game}
+                json={
+                    "user_id": str(uid),
+                    "game": game
+                }
             ) as r:
                 data = await r.json()
                 url = data.get("download_url")
@@ -138,9 +162,12 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     cursor.execute("INSERT INTO downloads VALUES (?,?)", (uid, game))
                     conn.commit()
 
-                    await context.bot.send_message(uid, f"رابط التحميل:\n{url}")
+                    await context.bot.send_message(
+                        uid,
+                        f"🔗 رابط التحميل:\n{url}"
+                    )
 
-                    approved.pop(uid, None)
+                    approved_users.pop(uid, None)
 
 # ---------------- MAIN ----------------
 async def main():
