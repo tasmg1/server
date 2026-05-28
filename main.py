@@ -291,9 +291,9 @@ def payment_text(game_title: Optional[str] = None, device_title: Optional[str] =
     selected = ""
     if game_title and device_title:
         selected = (
-            f"🎮 اللعبة: <b>{escape_text(game_title)}</b>
+            f"🎮 <b>اللعبة:</b> {escape_text(game_title)}
 "
-            f"📲 الجهاز: <b>{escape_text(device_title)}</b>
+            f"📱 <b>الجهاز:</b> {escape_text(device_title)}
 "
         )
 
@@ -302,20 +302,21 @@ def payment_text(game_title: Optional[str] = None, device_title: Optional[str] =
 
 "
         f"{selected}"
-        f"💰 السعر: <b>{escape_text(GAME_PRICE)}</b>
+        f"💰 <b>السعر:</b> {escape_text(GAME_PRICE)}
 
 "
-        "حوّل المبلغ إلى بطاقة <b>ماستر كارد</b>:
+        "يرجى تحويل المبلغ إلى بطاقة ماستر كارد التالية:
 "
         f"<code>{escape_text(PAYMENT_CARD)}</code>
 
 "
-        "📸 بعد التحويل، أرسل صورة إيصال الدفع هنا.
-"
-        "✅ بعد قبول الإيصال من الإدارة، سيصلك رابط تحميل مؤقت خاص بك.
+        "📸 بعد التحويل، أرسل صورة إيصال الدفع هنا في المحادثة.
 
 "
-        "⚠️ تأكد أن الإيصال واضح ويظهر مبلغ التحويل."
+        "✅ بعد مراجعة الإيصال والموافقة عليه، سيصلك رابط تحميل مؤقت خاص بك.
+
+"
+        "⚠️ ملاحظة: تأكد أن الإيصال واضح ويظهر مبلغ التحويل."
     )
 
 
@@ -412,8 +413,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     await update.message.reply_text(
-        "👋 أهلاً بك في <b>PlayZone</b>\n\n"
-        "اختر اللعبة، ثم نوع الجهاز، ثم ادفع 1000 IQD وأرسل صورة الإيصال لتحصل على رابط التحميل.",
+        "👋 أهلاً بك في <b>PlayZone</b>
+
+"
+        "من هنا يمكنك طلب تحميل الألعاب بعد الدفع.
+
+"
+        "الخطوات:
+"
+        "1️⃣ اختر اللعبة.
+"
+        "2️⃣ اختر نوع جهازك.
+"
+        "3️⃣ ادفع 1000 IQD.
+"
+        "4️⃣ أرسل صورة الإيصال.
+
+"
+        "بعد الموافقة، سيصلك رابط تحميل مؤقت خاص بك.",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard(),
     )
@@ -427,7 +444,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "استخدم الأزرار لاختيار اللعبة أو أرسل صورة إيصال الدفع بعد التحويل.",
+        "يرجى استخدام الأزرار في الأسفل لاختيار اللعبة ونوع الجهاز.
+
+بعد الدفع، أرسل صورة الإيصال هنا.",
         reply_markup=main_menu_keyboard(),
     )
 
@@ -449,7 +468,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not game_id or not device_code:
         await update.message.reply_text(
-            "⚠️ قبل إرسال الإيصال، اختر اللعبة ونوع الجهاز أولاً.",
+            "⚠️ يرجى اختيار اللعبة ونوع الجهاز أولًا قبل إرسال إيصال الدفع.",
             reply_markup=games_keyboard(),
         )
         return
@@ -463,7 +482,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(order.get("user_id")) == str(user.id) and order.get("status") == "pending"
     ]
     if existing_pending:
-        await update.message.reply_text("⚠️ لديك إيصال قيد المراجعة بالفعل. انتظر رد الأدمن.")
+        await update.message.reply_text("⏳ لديك إيصال قيد المراجعة حاليًا.
+يرجى الانتظار حتى يتم قبوله أو رفضه من الإدارة.")
         return
 
     file_id = update.message.photo[-1].file_id
@@ -503,7 +523,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "✅ تم استلام الإيصال.\nسيتم مراجعته قريبًا، وبعد القبول سيصلك رابط التحميل المؤقت."
+        "✅ تم استلام إيصال الدفع بنجاح.
+
+سيتم مراجعته من الإدارة قريبًا.
+بعد الموافقة، سيصلك رابط التحميل المؤقت هنا مباشرة."
     )
 
 
@@ -634,8 +657,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=target_user_id,
                     text=(
-                        "❌ تم رفض إيصال الدفع.\n\n"
-                        "يرجى التأكد من الإيصال أو التواصل معنا للدعم:\n"
+                        "❌ تم رفض إيصال الدفع.
+
+"
+                        "يرجى التأكد من أن الإيصال واضح ويظهر مبلغ التحويل، أو تواصل معنا للدعم:
+"
                         f"{SUPPORT_URL}"
                     ),
                 )
@@ -650,7 +676,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if action == "approve":
                 await context.bot.send_message(
                     chat_id=target_user_id,
-                    text="✅ تم قبول الدفع.\nجاري تجهيز رابط التحميل المؤقت...",
+                    text="✅ تم قبول الدفع بنجاح.
+
+جاري تجهيز رابط التحميل المؤقت الخاص بك...",
                 )
 
                 try:
@@ -658,7 +686,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if not download_url:
                         await context.bot.send_message(
                             chat_id=target_user_id,
-                            text="❌ فشل توليد رابط التحميل. تواصل مع الدعم وسيتم حل المشكلة.",
+                            text="❌ حدث خطأ أثناء تجهيز رابط التحميل.
+يرجى التواصل مع الدعم وسيتم حل المشكلة.",
                         )
                         await query.answer("فشل توليد الرابط", show_alert=True)
                         return
@@ -697,7 +726,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.exception("Approve failed for order %s: %s", order_id, error)
                     await context.bot.send_message(
                         chat_id=target_user_id,
-                        text="⚠️ تم قبول الدفع، لكن حدث خطأ أثناء توليد الرابط. سيتم التواصل معك قريبًا.",
+                        text="⚠️ تم قبول الدفع، لكن حدث خطأ أثناء تجهيز رابط التحميل.
+سيتم حل المشكلة والتواصل معك قريبًا.",
                     )
                     await query.answer("حدث خطأ أثناء توليد الرابط", show_alert=True)
                     return
