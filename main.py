@@ -18,7 +18,14 @@ import aiohttp
 import nest_asyncio
 from flask import Flask
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    BotCommand,
+    BotCommandScopeDefault,
+    BotCommandScopeChat,
+)
 from telegram.error import TelegramError
 from telegram.ext import (
     ApplicationBuilder,
@@ -33,14 +40,6 @@ from telegram.ext import (
 # PlayZone Telegram Bot
 # Professional & Secure Version
 # =====================================================
-# Railway Variables required:
-# BOT_TOKEN
-# ADMIN_CHAT_ID
-# DOWNLOAD_API_URL
-# GAME_PRICE
-# Optional:
-# DOWNLOAD_API_SECRET
-# =====================================================
 
 logging.basicConfig(
     level=logging.INFO,
@@ -50,7 +49,10 @@ logger = logging.getLogger("playzone-bot")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_CHAT_ID_RAW = os.getenv("ADMIN_CHAT_ID", "8569699093").strip()
-DOWNLOAD_API_URL = os.getenv("DOWNLOAD_API_URL", "https://gfdbgta.pythonanywhere.com/generate_link").strip()
+DOWNLOAD_API_URL = os.getenv(
+    "DOWNLOAD_API_URL",
+    "https://gfdbgta.pythonanywhere.com/generate_link"
+).strip()
 DOWNLOAD_API_SECRET = os.getenv("DOWNLOAD_API_SECRET", "").strip()
 
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://instagram.com/p1ay.zone").strip()
@@ -71,6 +73,7 @@ try:
 except ValueError:
     raise RuntimeError("ADMIN_CHAT_ID must be an integer")
 
+
 # =====================================================
 # Keep Alive Web Server
 # =====================================================
@@ -84,7 +87,8 @@ def home():
 
 
 def run_web_server():
-    app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
+    port = int(os.getenv("PORT", "8080"))
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 
 def keep_alive():
@@ -120,6 +124,7 @@ STATUS_LABELS = {
     "pending": "⏳ قيد المراجعة",
     "approved": "✅ مقبول",
     "rejected": "❌ مرفوض",
+    "expired": "⌛ منتهي",
     "link_failed": "⚠️ فشل تجهيز الرابط",
 }
 
@@ -129,6 +134,7 @@ REJECTION_REASONS = {
     "not_received": "لم يصل التحويل",
     "invalid_image": "صورة غير صالحة",
 }
+
 
 # =====================================================
 # Simple JSON Database
@@ -212,6 +218,7 @@ def load_db_sync() -> Dict[str, Any]:
 
 def save_db_sync() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
     temp_file = DB_FILE.with_suffix(".tmp")
 
     with temp_file.open("w", encoding="utf-8") as file:
@@ -264,7 +271,11 @@ async def cleanup_expired_data() -> None:
     removed_payments, removed_sessions = await update_db(mutate)
 
     if removed_payments or removed_sessions:
-        logger.info("Cleaned expired data: payments=%s sessions=%s", removed_payments, removed_sessions)
+        logger.info(
+            "Cleaned expired data: payments=%s sessions=%s",
+            removed_payments,
+            removed_sessions,
+        )
 
 
 async def is_rate_limited(user_id: int, action: str) -> bool:
@@ -379,13 +390,22 @@ def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
 
 
 def back_home_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")]
+    ])
 
 
 def support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
         [InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")],
+    ])
+
+
+def download_keyboard(download_url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬇️ تحميل اللعبة الآن", url=download_url)],
+        [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")],
     ])
 
 
@@ -450,6 +470,7 @@ def order_status_text(order: Dict[str, Any]) -> str:
 def order_caption(order: Dict[str, Any]) -> str:
     game_id = order.get("game")
     device_code = order.get("device")
+
     game_title = GAMES.get(game_id, {}).get("title", game_id)
     device_title = DEVICES.get(device_code, device_code)
     username = order.get("username") or "لا يوجد"
@@ -511,20 +532,31 @@ def support_text(user_id: int) -> str:
 
 
 def my_games_text(user_id: int) -> str:
-    orders = [order for order in get_user_orders(user_id) if order.get("status") == "approved"]
+    orders = [
+        order for order in get_user_orders(user_id)
+        if order.get("status") == "approved"
+    ]
 
     if not orders:
         return "🕹️ لا توجد ألعاب مدفوعة سابقة في حسابك حتى الآن."
 
-    lines = ["🕹️ <b>ألعابك السابقة</b>", ""]
+    lines = [
+        "🕹️ <b>ألعابك السابقة</b>",
+        "",
+    ]
 
     for index, order in enumerate(orders[:10], start=1):
         game_title = GAMES.get(order.get("game"), {}).get("title", order.get("game"))
         device_title = DEVICES.get(order.get("device"), order.get("device"))
-        lines.append(str(index) + ". " + escape_text(game_title) + " - " + escape_text(device_title) + " - ✅ مدفوع")
+        lines.append(
+            str(index) + ". " +
+            escape_text(game_title) + " - " +
+            escape_text(device_title) + " - ✅ مدفوع"
+        )
 
     lines.append("")
     lines.append("للحصول على رابط جديد، تواصل مع الدعم أو أرسل طلبًا جديدًا.")
+
     return "\n".join(lines)
 
 
@@ -536,13 +568,28 @@ def sign_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not DOWNLOAD_API_SECRET:
         return payload
 
-    message = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    signature = hmac.new(DOWNLOAD_API_SECRET.encode("utf-8"), message, "sha256").hexdigest()
+    message = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":")
+    ).encode("utf-8")
+
+    signature = hmac.new(
+        DOWNLOAD_API_SECRET.encode("utf-8"),
+        message,
+        "sha256"
+    ).hexdigest()
+
     payload["signature"] = signature
     return payload
 
 
-async def generate_download_link(user_id: int, game_id: str, device_code: str, order_id: str) -> Optional[str]:
+async def generate_download_link(
+    user_id: int,
+    game_id: str,
+    device_code: str,
+    order_id: str,
+) -> Optional[str]:
     payload = {
         "user_id": str(user_id),
         "device": device_code,
@@ -552,17 +599,45 @@ async def generate_download_link(user_id: int, game_id: str, device_code: str, o
     }
 
     payload = sign_payload(payload)
+
     timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT_SECONDS)
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(DOWNLOAD_API_URL, json=payload) as response:
             if response.status >= 400:
                 body = await response.text()
-                logger.error("Download API error status=%s body=%s", response.status, body[:500])
+                logger.error(
+                    "Download API error status=%s body=%s",
+                    response.status,
+                    body[:500],
+                )
                 return None
 
             data = await response.json()
             return data.get("download_url")
+
+
+# =====================================================
+# Bot Commands Setup
+# =====================================================
+
+async def setup_bot_commands(application):
+    await application.bot.set_my_commands(
+        [
+            BotCommand("start", "فتح القائمة الرئيسية"),
+        ],
+        scope=BotCommandScopeDefault(),
+    )
+
+    await application.bot.set_my_commands(
+        [
+            BotCommand("start", "فتح القائمة الرئيسية"),
+            BotCommand("stats", "إحصائيات البوت"),
+            BotCommand("pending", "الطلبات قيد المراجعة"),
+            BotCommand("orders", "آخر الطلبات"),
+        ],
+        scope=BotCommandScopeChat(chat_id=ADMIN_CHAT_ID),
+    )
 
 
 # =====================================================
@@ -598,14 +673,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if payload in GAMES:
             def set_game(data):
                 session = data["sessions"].setdefault(key, {})
-                session.update({"game": payload, "updated_ts": utc_now_ts()})
+                session.update({
+                    "game": payload,
+                    "updated_ts": utc_now_ts(),
+                })
 
             await update_db(set_game)
+
             game = GAMES[payload]
 
             await update.message.reply_text(
                 "👋 أهلاً بك في <b>PlayZone</b>\n\n"
-                "تم اختيار لعبة:\n" + game["emoji"] + " <b>" + escape_text(game["title"]) + "</b>\n\n"
+                "تم اختيار لعبة:\n"
+                + game["emoji"] + " <b>" + escape_text(game["title"]) + "</b>\n\n"
                 "اختر نوع جهازك:",
                 parse_mode="HTML",
                 reply_markup=devices_keyboard(payload),
@@ -663,7 +743,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if game_id not in GAMES or device_code not in DEVICES:
-        await update.message.reply_text("❌ اختيار اللعبة أو الجهاز غير صحيح. ابدأ من جديد.", reply_markup=games_keyboard())
+        await update.message.reply_text(
+            "❌ اختيار اللعبة أو الجهاز غير صحيح. ابدأ من جديد.",
+            reply_markup=games_keyboard(),
+        )
         return
 
     existing_pending = get_pending_user_order(user.id)
@@ -698,7 +781,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     def mutate(data):
         data["pending_payments"][order_id] = order
         data["orders"][order_id] = order.copy()
-        data["stats"]["submitted_receipts"] = int(data["stats"].get("submitted_receipts", 0)) + 1
+        data["stats"]["submitted_receipts"] = int(
+            data["stats"].get("submitted_receipts", 0)
+        ) + 1
 
     await update_db(mutate)
 
@@ -712,7 +797,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except TelegramError as error:
         logger.error("Failed to send receipt to admin: %s", error)
-        await update.message.reply_text("⚠️ حدث خطأ أثناء إرسال الإيصال للمراجعة. حاول لاحقًا.")
+        await update.message.reply_text(
+            "⚠️ حدث خطأ أثناء إرسال الإيصال للمراجعة. حاول لاحقًا."
+        )
         return
 
     await update.message.reply_text(
@@ -731,6 +818,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await query.answer()
+
     data = query.data or ""
     user_id = query.from_user.id
 
@@ -744,11 +832,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if data == "menu:games":
-            await query.edit_message_text("🎮 اختر اللعبة التي تريد تحميلها:", reply_markup=games_keyboard())
+            await query.edit_message_text(
+                "🎮 اختر اللعبة التي تريد تحميلها:",
+                reply_markup=games_keyboard(),
+            )
             return
 
         if data == "menu:payment":
-            await query.edit_message_text(payment_text(), parse_mode="HTML", reply_markup=back_home_keyboard())
+            await query.edit_message_text(
+                payment_text(),
+                parse_mode="HTML",
+                reply_markup=back_home_keyboard(),
+            )
             return
 
         if data == "menu:status":
@@ -804,6 +899,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 })
 
             await update_db(mutate)
+
             game = GAMES[game_id]
 
             await query.edit_message_text(
@@ -840,7 +936,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 payment_text(GAMES[game_id]["title"], DEVICES[device_code]),
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ تغيير اللعبة", callback_data="menu:games")]]),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ تغيير اللعبة", callback_data="menu:games")]
+                ]),
             )
             return
 
@@ -876,6 +974,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
     target_user_id = int(order["user_id"])
     game_id = order["game"]
     device_code = order["device"]
+
     game_title = GAMES.get(game_id, {}).get("title", game_id)
     device_title = DEVICES.get(device_code, device_code)
 
@@ -911,12 +1010,16 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
 
         def mutate(data_obj):
             current = data_obj["pending_payments"].pop(order_id, None)
+
             if current:
                 current["status"] = "rejected"
                 current["reviewed_at"] = iso_now()
                 current["rejection_reason"] = reason_text
                 data_obj["orders"][order_id] = current
-            data_obj["stats"]["rejected_orders"] = int(data_obj["stats"].get("rejected_orders", 0)) + 1
+
+            data_obj["stats"]["rejected_orders"] = int(
+                data_obj["stats"].get("rejected_orders", 0)
+            ) + 1
 
         await update_db(mutate)
 
@@ -926,7 +1029,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                 "❌ تم رفض إيصال الدفع.\n\n"
                 "🧾 رقم الطلب: " + escape_text(order_id) + "\n"
                 "السبب: " + escape_text(reason_text) + "\n\n"
-                "يرجى إرسال إيصال صحيح أو التواصل مع الدعم:\n" + SUPPORT_URL
+                "يرجى إرسال إيصال صحيح أو التواصل مع الدعم:\n"
+                + SUPPORT_URL
             ),
         )
 
@@ -934,7 +1038,11 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         order["rejection_reason"] = reason_text
 
         await query.edit_message_caption(
-            order_caption(order) + "\n\n🚫 تم الرفض بواسطة الإدارة في " + now_text() + "\nالسبب: " + escape_text(reason_text),
+            order_caption(order)
+            + "\n\n🚫 تم الرفض بواسطة الإدارة في "
+            + now_text()
+            + "\nالسبب: "
+            + escape_text(reason_text),
             parse_mode="HTML",
         )
         return
@@ -946,7 +1054,12 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         )
 
         try:
-            download_url = await generate_download_link(target_user_id, game_id, device_code, order_id)
+            download_url = await generate_download_link(
+                target_user_id,
+                game_id,
+                device_code,
+                order_id,
+            )
 
             if not download_url:
                 def fail_mutate(data_obj):
@@ -954,13 +1067,19 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                     if current:
                         current["status"] = "link_failed"
                         data_obj["orders"][order_id] = current.copy()
-                    data_obj["stats"]["link_failures"] = int(data_obj["stats"].get("link_failures", 0)) + 1
+
+                    data_obj["stats"]["link_failures"] = int(
+                        data_obj["stats"].get("link_failures", 0)
+                    ) + 1
 
                 await update_db(fail_mutate)
 
                 await context.bot.send_message(
                     chat_id=target_user_id,
-                    text="❌ حدث خطأ أثناء تجهيز رابط التحميل.\nيرجى التواصل مع الدعم وسيتم حل المشكلة.",
+                    text=(
+                        "❌ حدث خطأ أثناء تجهيز رابط التحميل.\n"
+                        "يرجى التواصل مع الدعم وسيتم حل المشكلة."
+                    ),
                 )
 
                 await context.bot.send_message(
@@ -985,21 +1104,26 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                     "🧾 رقم الطلب: <code>" + escape_text(order_id) + "</code>\n"
                     "🎮 اللعبة: <b>" + escape_text(game_title) + "</b>\n"
                     "📱 الجهاز: <b>" + escape_text(device_title) + "</b>\n\n"
-                    "🔗 رابط التحميل:\n" + escape_text(download_url) + "\n\n"
-                    "⚠️ الرابط مؤقت وصالح لمدة قصيرة فقط. افتحه الآن ولا تشاركه مع أي شخص."
+                    "اضغط الزر بالأسفل لتحميل اللعبة.\n\n"
+                    "⚠️ الرابط مؤقت وصالح لمدة قصيرة فقط.\n"
+                    "لا تشاركه مع أي شخص."
                 ),
                 parse_mode="HTML",
+                reply_markup=download_keyboard(download_url),
             )
 
             await context.bot.send_message(
                 chat_id=target_user_id,
                 text=install_instructions_text(device_code),
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")]]),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")]
+                ]),
             )
 
             def mutate(data_obj):
                 current = data_obj["pending_payments"].pop(order_id, None)
+
                 if current:
                     current["status"] = "approved"
                     current["reviewed_at"] = iso_now()
@@ -1008,12 +1132,19 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                     data_obj["orders"][order_id] = current
 
                 data_obj["sessions"].pop(user_key(target_user_id), None)
-                data_obj["stats"]["approved_orders"] = int(data_obj["stats"].get("approved_orders", 0)) + 1
-                data_obj["stats"]["generated_links"] = int(data_obj["stats"].get("generated_links", 0)) + 1
+
+                data_obj["stats"]["approved_orders"] = int(
+                    data_obj["stats"].get("approved_orders", 0)
+                ) + 1
+
+                data_obj["stats"]["generated_links"] = int(
+                    data_obj["stats"].get("generated_links", 0)
+                ) + 1
 
             await update_db(mutate)
 
             order["status"] = "approved"
+
             await query.edit_message_caption(
                 order_caption(order) + "\n\n✅ تم القبول وإرسال الرابط في " + now_text(),
                 parse_mode="HTML",
@@ -1028,13 +1159,19 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                 if current:
                     current["status"] = "link_failed"
                     data_obj["orders"][order_id] = current.copy()
-                data_obj["stats"]["link_failures"] = int(data_obj["stats"].get("link_failures", 0)) + 1
+
+                data_obj["stats"]["link_failures"] = int(
+                    data_obj["stats"].get("link_failures", 0)
+                ) + 1
 
             await update_db(fail_mutate)
 
             await context.bot.send_message(
                 chat_id=target_user_id,
-                text="⚠️ تم قبول الدفع، لكن حدث خطأ أثناء تجهيز رابط التحميل.\nسيتم حل المشكلة والتواصل معك قريبًا.",
+                text=(
+                    "⚠️ تم قبول الدفع، لكن حدث خطأ أثناء تجهيز رابط التحميل.\n"
+                    "سيتم حل المشكلة والتواصل معك قريبًا."
+                ),
             )
 
             await context.bot.send_message(
@@ -1097,7 +1234,17 @@ async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for order in pending[:20]:
         game_title = GAMES.get(order.get("game"), {}).get("title", order.get("game"))
         device_title = DEVICES.get(order.get("device"), order.get("device"))
-        lines.append("• " + str(order.get("order_id")) + " | " + str(order.get("full_name")) + " | " + str(game_title) + " | " + str(device_title))
+
+        lines.append(
+            "• "
+            + str(order.get("order_id"))
+            + " | "
+            + str(order.get("full_name"))
+            + " | "
+            + str(game_title)
+            + " | "
+            + str(device_title)
+        )
 
     await update.message.reply_text("\n".join(lines))
 
@@ -1119,7 +1266,16 @@ async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         game_title = GAMES.get(order.get("game"), {}).get("title", order.get("game"))
         device_title = DEVICES.get(order.get("device"), order.get("device"))
         status = STATUS_LABELS.get(order.get("status", "pending"), order.get("status", "pending"))
-        lines.append(str(order.get("order_id")) + " | " + str(game_title) + " | " + str(device_title) + " | " + str(status))
+
+        lines.append(
+            str(order.get("order_id"))
+            + " | "
+            + str(game_title)
+            + " | "
+            + str(device_title)
+            + " | "
+            + str(status)
+        )
 
     await update.message.reply_text("\n".join(lines))
 
@@ -1142,6 +1298,8 @@ async def main():
     await cleanup_expired_data()
 
     application = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    await setup_bot_commands(application)
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("stats", admin_stats))
