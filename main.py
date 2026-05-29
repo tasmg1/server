@@ -74,6 +74,10 @@ except ValueError:
     raise RuntimeError("ADMIN_CHAT_ID must be an integer")
 
 
+def is_admin(user_id: int) -> bool:
+    return int(user_id) == int(ADMIN_CHAT_ID)
+
+
 # =====================================================
 # Keep Alive Web Server
 # =====================================================
@@ -654,7 +658,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     key = user_key(user.id)
 
     def mutate(data):
-        data["stats"]["started_users"] = int(data["stats"].get("started_users", 0)) + 1
+        if not is_admin(user.id):
+            data["stats"]["started_users"] = int(data["stats"].get("started_users", 0)) + 1
+
         data["sessions"][key] = {
             "user_id": user.id,
             "full_name": user.full_name,
@@ -726,6 +732,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.message.from_user
     key = user_key(user.id)
+
+    if is_admin(user.id):
+        await update.message.reply_text(
+            "👑 وضع الأدمن مفعّل.\nلن يتم احتساب هذه الصورة كطلب حقيقي."
+        )
+        return
 
     if await is_rate_limited(user.id, "photo"):
         await update.message.reply_text("⏳ انتظر قليلًا قبل إرسال إيصال آخر.")
