@@ -329,15 +329,19 @@ def get_pending_user_order(user_id: int) -> Optional[Dict[str, Any]]:
 
 
 # =====================================================
-# Keyboards
+# Keyboards - Improved Buttons
 # =====================================================
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎮 الألعاب", callback_data="menu:games")],
-        [InlineKeyboardButton("📦 حالة طلبي", callback_data="menu:status")],
-        [InlineKeyboardButton("🕹️ ألعابي السابقة", callback_data="menu:my_games")],
-        [InlineKeyboardButton("💳 طريقة الدفع", callback_data="menu:payment")],
+        [
+            InlineKeyboardButton("🎮 الألعاب", callback_data="menu:games"),
+            InlineKeyboardButton("📦 حالة طلبي", callback_data="menu:status"),
+        ],
+        [
+            InlineKeyboardButton("🕹️ ألعابي السابقة", callback_data="menu:my_games"),
+            InlineKeyboardButton("💳 طريقة الدفع", callback_data="menu:payment"),
+        ],
         [InlineKeyboardButton("📞 الدعم", callback_data="menu:support")],
     ])
 
@@ -353,7 +357,7 @@ def games_keyboard() -> InlineKeyboardMarkup:
             )
         ])
 
-    buttons.append([InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")])
+    buttons.append([InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="menu:home")])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -361,25 +365,42 @@ def devices_keyboard(game_id: str) -> InlineKeyboardMarkup:
     buttons = []
     available = GAMES[game_id].get("available_devices", [])
 
+    device_row = []
     for device_code in available:
-        buttons.append([
+        device_row.append(
             InlineKeyboardButton(
                 DEVICES[device_code],
                 callback_data="device:" + game_id + ":" + device_code,
             )
-        ])
+        )
 
-    buttons.append([InlineKeyboardButton("⬅️ اختيار لعبة أخرى", callback_data="menu:games")])
+    if device_row:
+        buttons.append(device_row)
+
+    buttons.append([
+        InlineKeyboardButton("🎮 لعبة أخرى", callback_data="menu:games"),
+        InlineKeyboardButton("🏠 الرئيسية", callback_data="menu:home"),
+    ])
     return InlineKeyboardMarkup(buttons)
+
+
+def payment_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎮 تغيير اللعبة", callback_data="menu:games"),
+            InlineKeyboardButton("📞 الدعم", callback_data="menu:support"),
+        ],
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="menu:home")],
+    ])
 
 
 def admin_review_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ قبول وإرسال زر التحميل", callback_data="admin:approve:" + order_id)],
         [
-            InlineKeyboardButton("✅ قبول وإرسال الرابط", callback_data="admin:approve:" + order_id),
             InlineKeyboardButton("❌ رفض", callback_data="admin:reject_menu:" + order_id),
+            InlineKeyboardButton("ℹ️ معلومات الطلب", callback_data="admin:info:" + order_id),
         ],
-        [InlineKeyboardButton("ℹ️ معلومات الطلب", callback_data="admin:info:" + order_id)],
     ])
 
 
@@ -395,21 +416,38 @@ def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
 
 def back_home_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")]
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="menu:home")]
     ])
 
 
 def support_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
-        [InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")],
+        [InlineKeyboardButton("📞 تواصل مع الدعم", url=SUPPORT_URL)],
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="menu:home")],
+    ])
+
+
+def rejected_user_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📞 التواصل مع الدعم", url=SUPPORT_URL)],
+        [InlineKeyboardButton("🎮 طلب جديد", callback_data="menu:games")],
     ])
 
 
 def download_keyboard(download_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⬇️ تحميل اللعبة الآن", url=download_url)],
-        [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")],
+        [
+            InlineKeyboardButton("📲 طريقة التثبيت", callback_data="menu:install_help"),
+            InlineKeyboardButton("📞 الدعم", callback_data="menu:support"),
+        ],
+    ])
+
+
+def install_help_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📞 أحتاج مساعدة", url=SUPPORT_URL)],
+        [InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="menu:home")],
     ])
 
 
@@ -435,7 +473,7 @@ def payment_text(game_title: Optional[str] = None, device_title: Optional[str] =
         "",
         "📸 بعد التحويل، أرسل صورة إيصال الدفع هنا في المحادثة.",
         "",
-        "✅ بعد مراجعة الإيصال والموافقة عليه، سيصلك رابط تحميل مؤقت خاص بك.",
+        "✅ بعد مراجعة الإيصال والموافقة عليه، سيصلك زر تحميل مباشر مؤقت وخاص بك.",
         "",
         "⚠️ تأكد أن الإيصال واضح ويظهر مبلغ التحويل.",
     ])
@@ -706,7 +744,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2️⃣ اختر نوع جهازك.\n"
         "3️⃣ ادفع " + escape_text(GAME_PRICE) + ".\n"
         "4️⃣ أرسل صورة الإيصال.\n\n"
-        "بعد الموافقة، سيصلك رابط تحميل مؤقت خاص بك.",
+        "بعد الموافقة، سيصلك زر تحميل مؤقت خاص بك.",
         parse_mode="HTML",
         reply_markup=main_menu_keyboard(),
     )
@@ -818,7 +856,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ تم استلام إيصال الدفع بنجاح.\n\n"
         "🧾 رقم الطلب: " + escape_text(order_id) + "\n\n"
         "سيتم مراجعته من الإدارة قريبًا.\n"
-        "بعد الموافقة، سيصلك رابط التحميل المؤقت هنا مباشرة.",
+        "بعد الموافقة، سيصلك زر التحميل هنا مباشرة.",
         parse_mode="HTML",
     )
 
@@ -880,6 +918,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 my_games_text(user_id),
                 parse_mode="HTML",
                 reply_markup=back_home_keyboard(),
+            )
+            return
+
+        if data == "menu:install_help":
+            device_code = "android"
+            latest = get_user_latest_order(user_id)
+            if latest and latest.get("device"):
+                device_code = latest.get("device")
+
+            await query.edit_message_text(
+                install_instructions_text(device_code),
+                parse_mode="HTML",
+                reply_markup=install_help_keyboard(),
             )
             return
 
@@ -948,9 +999,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 payment_text(GAMES[game_id]["title"], DEVICES[device_code]),
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⬅️ تغيير اللعبة", callback_data="menu:games")]
-                ]),
+                reply_markup=payment_keyboard(),
             )
             return
 
@@ -1038,12 +1087,13 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await context.bot.send_message(
             chat_id=target_user_id,
             text=(
-                "❌ تم رفض إيصال الدفع.\n\n"
-                "🧾 رقم الطلب: " + escape_text(order_id) + "\n"
-                "السبب: " + escape_text(reason_text) + "\n\n"
-                "يرجى إرسال إيصال صحيح أو التواصل مع الدعم:\n"
-                + SUPPORT_URL
+                "❌ <b>تم رفض إيصال الدفع</b>\n\n"
+                "🧾 رقم الطلب: <code>" + escape_text(order_id) + "</code>\n"
+                "📌 السبب: " + escape_text(reason_text) + "\n\n"
+                "يمكنك التواصل مع الدعم أو إرسال طلب جديد من الأزرار بالأسفل."
             ),
+            parse_mode="HTML",
+            reply_markup=rejected_user_keyboard(),
         )
 
         order["status"] = "rejected"
@@ -1062,7 +1112,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
     if action == "approve":
         await context.bot.send_message(
             chat_id=target_user_id,
-            text="✅ تم قبول الدفع بنجاح.\n\nجاري تجهيز رابط التحميل المؤقت الخاص بك...",
+            text="✅ تم قبول الدفع بنجاح.\n\nجاري تجهيز زر التحميل المؤقت الخاص بك...",
         )
 
         try:
@@ -1089,7 +1139,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                 await context.bot.send_message(
                     chat_id=target_user_id,
                     text=(
-                        "❌ حدث خطأ أثناء تجهيز رابط التحميل.\n"
+                        "❌ حدث خطأ أثناء تجهيز زر التحميل.\n"
                         "يرجى التواصل مع الدعم وسيتم حل المشكلة."
                     ),
                 )
@@ -1116,8 +1166,8 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                     "🧾 رقم الطلب: <code>" + escape_text(order_id) + "</code>\n"
                     "🎮 اللعبة: <b>" + escape_text(game_title) + "</b>\n"
                     "📱 الجهاز: <b>" + escape_text(device_title) + "</b>\n\n"
-                    "اضغط الزر بالأسفل لتحميل اللعبة.\n\n"
-                    "⚠️ الرابط مؤقت وصالح لمدة قصيرة فقط.\n"
+                    "اضغط زر التحميل بالأسفل لتحميل اللعبة.\n\n"
+                    "⚠️ الزر مؤقت وصالح لمدة قصيرة فقط.\n"
                     "لا تشاركه مع أي شخص."
                 ),
                 parse_mode="HTML",
@@ -1128,9 +1178,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
                 chat_id=target_user_id,
                 text=install_instructions_text(device_code),
                 parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")]
-                ]),
+                reply_markup=install_help_keyboard(),
             )
 
             def mutate(data_obj):
@@ -1158,7 +1206,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             order["status"] = "approved"
 
             await query.edit_message_caption(
-                order_caption(order) + "\n\n✅ تم القبول وإرسال الرابط في " + now_text(),
+                order_caption(order) + "\n\n✅ تم القبول وإرسال زر التحميل في " + now_text(),
                 parse_mode="HTML",
             )
             return
@@ -1181,7 +1229,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             await context.bot.send_message(
                 chat_id=target_user_id,
                 text=(
-                    "⚠️ تم قبول الدفع، لكن حدث خطأ أثناء تجهيز رابط التحميل.\n"
+                    "⚠️ تم قبول الدفع، لكن حدث خطأ أثناء تجهيز زر التحميل.\n"
                     "سيتم حل المشكلة والتواصل معك قريبًا."
                 ),
             )
@@ -1344,4 +1392,3 @@ if __name__ == "__main__":
 
     except Exception as error:
         logger.exception("General error: %s", error)
-        
