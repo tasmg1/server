@@ -585,6 +585,27 @@ def download_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
     ])
 
 
+def receipt_submitted_keyboard(order_id: str) -> InlineKeyboardMarkup:
+    return kb([
+        [InlineKeyboardButton("📦 متابعة حالة الطلب", callback_data=f"receipt:status:{order_id}")],
+        [InlineKeyboardButton("📞 الدعم", callback_data=f"receipt:support:{order_id}")],
+        [InlineKeyboardButton("🎮 اختيار لعبة أخرى", callback_data="menu:games")],
+    ])
+
+
+def receipt_back_keyboard(order_id: str) -> InlineKeyboardMarkup:
+    return kb([
+        [InlineKeyboardButton("⬅️ رجوع لرسالة الإيصال", callback_data=f"receipt:back:{order_id}")],
+    ])
+
+
+def order_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
+    return kb([
+        [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
+        [InlineKeyboardButton("⬅️ رجوع لرسالة الإيصال", callback_data=f"receipt:back:{order_id}")],
+    ])
+
+
 def confirm_reset_keyboard() -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("✅ نعم، صفّر العدادات", callback_data="admin:reset_stats")],
@@ -689,6 +710,18 @@ def order_status_text(order: Dict[str, Any]) -> str:
         lines.append("🕒 <b>وقت الطلب:</b> " + escape_text(order.get("created_at_text")))
 
     return "\n".join(lines)
+
+
+def receipt_received_text(order: Dict[str, Any]) -> str:
+    return (
+        "✅ <b>تم استلام إيصال الدفع بنجاح</b>\n\n"
+        "🧾 رقم الطلب: <code>" + escape_text(order.get("order_id", "")) + "</code>\n"
+        "🎮 اللعبة: <b>" + escape_text(get_game_title(order.get("game"))) + "</b>\n"
+        "📱 الجهاز: <b>" + escape_text(get_device_title(order.get("device"))) + "</b>\n"
+        "💰 السعر: <b>" + escape_text(order.get("price", GAME_PRICE)) + "</b>\n\n"
+        "📌 الحالة: <b>قيد المراجعة</b>\n"
+        "بعد الموافقة سيصلك زر التحميل هنا مباشرة."
+    )
 
 
 def no_order_text() -> str:
@@ -1076,8 +1109,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context,
             "⏳ لديك طلب قيد المراجعة حاليًا.\n\n" + order_status_text(existing_pending),
             kb([
-                [InlineKeyboardButton("📦 حالة طلبي", callback_data="menu:status")],
-                [InlineKeyboardButton("📞 الدعم", callback_data="menu:support")],
+                [InlineKeyboardButton("📦 متابعة حالة الطلب", callback_data=f"receipt:status:{existing_pending.get('order_id')}")],
+                [InlineKeyboardButton("📞 الدعم", callback_data=f"receipt:support:{existing_pending.get('order_id')}")],
             ]),
         )
         return
@@ -1124,16 +1157,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_new_menu(
         update,
         context,
-        (
-            "✅ <b>تم استلام إيصال الدفع بنجاح</b>\n\n"
-            "🧾 رقم الطلب: <code>" + escape_text(order_id) + "</code>\n"
-            "📌 الحالة: قيد المراجعة\n\n"
-            "بعد الموافقة سيصلك زر التحميل هنا مباشرة."
-        ),
-        kb([
-            [InlineKeyboardButton("📦 متابعة حالة الطلب", callback_data="menu:status")],
-            [InlineKeyboardButton("🏠 القائمة", callback_data="menu:home")],
-        ]),
+        receipt_received_text(order),
+        receipt_submitted_keyboard(order_id),
     )
 
 
@@ -1153,6 +1178,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if data.startswith("nav:"):
             await handle_nav_callback(query, context, data)
+            return
+
+        if data.startswith("receipt:"):
+            await handle_receipt_callback(query, context, data)
             return
 
         if data.startswith("download:"):
@@ -1290,6 +1319,37 @@ async def show_screen(query, screen: str, push: bool = True):
     await show_home_from_query(query)
 
 
+async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
+    # أزرار خاصة برسالة الإيصال حتى لا تعتمد على history ولا ترجع للرئيسية خطأ.
+    parts = data.split(":", 2)
+    action = parts[1] if len(parts) > 1 else ""
+    order_id = parts[2] if len(parts) > 2 else ""
+
+    order = db.get("orders", {}).get(order_id) or db.get("pending_payments", {}).get(order_id)
+    if not order:
+        await query.answer("لم أجد بيانات هذا الطلب", show_alert=True)
+        return
+
+    # لا نسمح لشخص آخر بفتح تفاصيل طلب غيره من زر قديم.
+    if str(order.get("user_id")) != str(query.from_user.id) and not is_admin(query.from_user.id):
+        await query.answer("هذا الطلب لا يخص حسابك", show_alert=True)
+        return
+
+    if action == "back":
+        await edit_query_message(query, receipt_received_text(order), receipt_submitted_keyboard(order_id))
+        return
+
+    if action == "status":
+        await edit_query_message(query, order_status_text(order), receipt_back_keyboard(order_id))
+        return
+
+    if action == "support":
+        await edit_query_message(query, support_text(query.from_user.id), order_support_keyboard(order_id))
+        return
+
+    await query.answer("خيار غير معروف", show_alert=True)
+
+
 async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     # أزرار خاصة برسالة التحميل فقط. لا تعتمد على history حتى لا يضيع زر التحميل.
     parts = data.split(":", 2)
@@ -1301,6 +1361,10 @@ async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, da
         await query.answer("لم أجد بيانات هذا الطلب", show_alert=True)
         return
 
+    if str(order.get("user_id")) != str(query.from_user.id) and not is_admin(query.from_user.id):
+        await query.answer("هذا الطلب لا يخص حسابك", show_alert=True)
+        return
+
     download_url = order.get("download_url")
     if action == "back":
         if download_url:
@@ -1308,6 +1372,7 @@ async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, da
         else:
             await edit_query_message(query, order_status_text(order), kb([
                 [InlineKeyboardButton("📞 الدعم", callback_data=f"download:support:{order_id}")],
+                [InlineKeyboardButton("⬅️ رجوع لحالة الطلب", callback_data=f"download:status:{order_id}")],
             ]))
         return
 
