@@ -496,7 +496,7 @@ def devices_keyboard(game_id: str) -> InlineKeyboardMarkup:
     rows = []
     for device_code in GAMES[game_id].get("available_devices", []):
         rows.append([InlineKeyboardButton(DEVICES[device_code], callback_data=f"device:{game_id}:{device_code}")])
-    rows.append([InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="menu:games")])
+    rows.append([InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")])
     return kb(rows)
 
 
@@ -561,11 +561,27 @@ def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
     ])
 
 
-def download_keyboard(download_url: str) -> InlineKeyboardMarkup:
+def download_keyboard(download_url: str, order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("⬇️ تحميل اللعبة الآن", url=download_url)],
-        [InlineKeyboardButton("📲 طريقة التثبيت", callback_data="menu:install_help")],
-        [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data="menu:support")],
+        [
+            InlineKeyboardButton("📲 طريقة التثبيت", callback_data=f"download:install:{order_id}"),
+            InlineKeyboardButton("📦 حالة الطلب", callback_data=f"download:status:{order_id}"),
+        ],
+        [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data=f"download:support:{order_id}")],
+    ])
+
+
+def download_back_keyboard(order_id: str) -> InlineKeyboardMarkup:
+    return kb([
+        [InlineKeyboardButton("⬅️ رجوع لزر التحميل", callback_data=f"download:back:{order_id}")],
+    ])
+
+
+def download_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
+    return kb([
+        [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
+        [InlineKeyboardButton("⬅️ رجوع لزر التحميل", callback_data=f"download:back:{order_id}")],
     ])
 
 
@@ -714,6 +730,20 @@ def help_text() -> str:
         "5️⃣ بعد الموافقة يصلك زر التحميل.\n\n"
         "🔐 رابط التحميل مؤقت وخاص بك.\n"
         "📌 لا تشارك الرابط مع أي شخص."
+    )
+
+
+def download_ready_text(order: Dict[str, Any]) -> str:
+    order_id = order.get("order_id", "")
+    game_title = get_game_title(order.get("game"))
+    device_title = get_device_title(order.get("device"))
+    return (
+        "✅ <b>طلبك جاهز</b>\n\n"
+        "🧾 رقم الطلب: <code>" + escape_text(order_id) + "</code>\n"
+        "🎮 اللعبة: <b>" + escape_text(game_title) + "</b>\n"
+        "📱 الجهاز: <b>" + escape_text(device_title) + "</b>\n\n"
+        "اضغط زر التحميل بالأسفل.\n"
+        "⚠️ الرابط مؤقت وخاص بك، لا تشاركه مع أي شخص."
     )
 
 
@@ -1125,6 +1155,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_nav_callback(query, context, data)
             return
 
+        if data.startswith("download:"):
+            await handle_download_callback(query, context, data)
+            return
+
         if data.startswith("menu:"):
             await handle_menu_callback(query, context, data)
             return
@@ -1176,10 +1210,33 @@ async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: 
     screen = data.split(":", 1)[1]
 
     if screen == "home":
-        await show_screen(query, "home")
-    elif screen == "games":
-        await show_screen(query, "games")
-    elif screen == "payment":
+        # الرئيسية تبدأ مسارًا جديدًا حتى لا يرجع المستخدم إلى صفحات قديمة جدًا.
+        def reset_history(data_obj):
+            session = data_obj.setdefault("sessions", {}).setdefault(user_key(query.from_user.id), {})
+            session["history"] = ["home"]
+            session["updated_ts"] = utc_now_ts()
+        await update_db(reset_history)
+        await show_screen(query, "home", push=False)
+        return
+
+    await show_screen(query, screen, push=True)
+
+
+async def show_screen(query, screen: str, push: bool = True):
+    user = query.from_user
+
+    if push:
+        await upsert_session(user, {}, push_screen=screen)
+
+    if screen == "home":
+        await show_home_from_query(query)
+        return
+
+    if screen == "games":
+        await edit_query_message(query, games_text(), games_keyboard())
+        return
+
+    if screen == "payment":
         session = get_session(query.from_user.id)
         game_id = session.get("game")
         device_code = session.get("device")
@@ -1188,7 +1245,9 @@ async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: 
             payment_text(get_game_title(game_id) if game_id else None, get_device_title(device_code) if device_code else None),
             payment_keyboard(),
         )
-    elif screen == "status":
+        return
+
+    if screen == "status":
         latest = get_user_latest_order(query.from_user.id)
         if latest:
             await edit_query_message(query, order_status_text(latest), kb([
@@ -1200,40 +1259,74 @@ async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: 
                 [InlineKeyboardButton("🎮 اختر لعبة", callback_data="menu:games")],
                 [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
             ]))
-    elif screen == "my_games":
+        return
+
+    if screen == "my_games":
         await edit_query_message(query, my_games_text(query.from_user.id), kb([
             [InlineKeyboardButton("🎮 طلب لعبة جديدة", callback_data="menu:games")],
             [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
         ]))
-    elif screen == "support":
+        return
+
+    if screen == "support":
         await edit_query_message(query, support_text(query.from_user.id), support_keyboard())
-    elif screen == "help":
+        return
+
+    if screen == "help":
         await edit_query_message(query, help_text(), kb([
             [InlineKeyboardButton("🎮 ابدأ الطلب", callback_data="menu:games")],
             [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
         ]))
-    elif screen == "install_help":
+        return
+
+    if screen == "install_help":
         session = get_session(query.from_user.id)
         await edit_query_message(query, install_instructions_text(session.get("device")), kb([
             [InlineKeyboardButton("📞 الدعم", callback_data="menu:support")],
             [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
         ]))
-    else:
-        await show_screen(query, "home")
+        return
+
+    await show_home_from_query(query)
 
 
-async def show_screen(query, screen: str, push: bool = True):
-    user = query.from_user
+async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
+    # أزرار خاصة برسالة التحميل فقط. لا تعتمد على history حتى لا يضيع زر التحميل.
+    parts = data.split(":", 2)
+    action = parts[1] if len(parts) > 1 else ""
+    order_id = parts[2] if len(parts) > 2 else ""
 
-    if push:
-        await upsert_session(user, {}, push_screen=screen)
+    order = db.get("orders", {}).get(order_id)
+    if not order:
+        await query.answer("لم أجد بيانات هذا الطلب", show_alert=True)
+        return
 
-    if screen == "home":
-        await show_home_from_query(query)
-    elif screen == "games":
-        await edit_query_message(query, games_text(), games_keyboard())
-    else:
-        await show_home_from_query(query)
+    download_url = order.get("download_url")
+    if action == "back":
+        if download_url:
+            await edit_query_message(query, download_ready_text(order), download_keyboard(download_url, order_id))
+        else:
+            await edit_query_message(query, order_status_text(order), kb([
+                [InlineKeyboardButton("📞 الدعم", callback_data=f"download:support:{order_id}")],
+            ]))
+        return
+
+    if action == "install":
+        await edit_query_message(query, install_instructions_text(order.get("device")), kb([
+            [InlineKeyboardButton("⬅️ رجوع لزر التحميل", callback_data=f"download:back:{order_id}")],
+            [InlineKeyboardButton("📞 الدعم", callback_data=f"download:support:{order_id}")],
+        ]))
+        return
+
+    if action == "status":
+        await edit_query_message(query, order_status_text(order), download_back_keyboard(order_id))
+        return
+
+    if action == "support":
+        await edit_query_message(query, support_text(query.from_user.id), download_support_keyboard(order_id))
+        return
+
+    await query.answer("خيار غير معروف", show_alert=True)
 
 
 async def handle_game_callback(query, data: str):
@@ -1540,7 +1633,7 @@ async def approve_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str
                 "⚠️ الرابط مؤقت وخاص بك، لا تشاركه مع أي شخص."
             ),
             parse_mode="HTML",
-            reply_markup=download_keyboard(download_url),
+            reply_markup=download_keyboard(download_url, order_id),
         )
 
         def mutate(data):
@@ -1552,7 +1645,11 @@ async def approve_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str
                 current["download_url"] = download_url
                 data["orders"][order_id] = current
 
-            data["sessions"].pop(user_key(target_user_id), None)
+            session = data.setdefault("sessions", {}).setdefault(user_key(target_user_id), {})
+            session.pop("game", None)
+            session.pop("device", None)
+            session["history"] = ["home"]
+            session["updated_ts"] = utc_now_ts()
             data["stats"]["approved_orders"] = safe_int(data["stats"].get("approved_orders"), 0) + 1
             data["stats"]["generated_links"] = safe_int(data["stats"].get("generated_links"), 0) + 1
             add_audit(data, "order_approved", {"order_id": order_id, "user_id": target_user_id})
