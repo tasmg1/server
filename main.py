@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from threading import Thread
 from typing import Any, Dict, Optional, List, Tuple
- 
+
 import aiohttp
 import nest_asyncio
 from flask import Flask
@@ -1834,6 +1834,8 @@ async def main():
     application.add_error_handler(error_handler)
 
     logger.info("PlayZone bot is running...")
+
+    await application.bot.delete_webhook(drop_pending_updates=True)
     await application.run_polling(drop_pending_updates=True)
 
 
