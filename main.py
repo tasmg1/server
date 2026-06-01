@@ -12,7 +12,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from threading import Thread
 from typing import Any, Dict, Optional, List, Tuple
-
+ 
 import aiohttp
 import nest_asyncio
 from flask import Flask
@@ -72,10 +72,8 @@ try:
 except ValueError as exc:
     raise RuntimeError("ADMIN_CHAT_ID must be an integer") from exc
 
-
 def is_admin(user_id: int) -> bool:
     return int(user_id) == int(ADMIN_CHAT_ID)
-
 
 # =====================================================
 # Keep Alive Web Server for Railway
@@ -83,11 +81,9 @@ def is_admin(user_id: int) -> bool:
 
 app = Flask(__name__)
 
-
 @app.route("/")
 def home():
     return "✅ PlayZone Bot is alive and running!"
-
 
 @app.route("/health")
 def health():
@@ -98,16 +94,13 @@ def health():
         "time": iso_now(),
     }
 
-
 def run_web_server():
     port = int(os.getenv("PORT", "8080"))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
-
 def keep_alive():
     thread = Thread(target=run_web_server, daemon=True)
     thread.start()
-
 
 # =====================================================
 # Store Data
@@ -170,7 +163,6 @@ DEFAULT_DB = {
 _db_lock = asyncio.Lock()
 db: Dict[str, Any] = json.loads(json.dumps(DEFAULT_DB))
 
-
 # =====================================================
 # Helpers
 # =====================================================
@@ -178,27 +170,21 @@ db: Dict[str, Any] = json.loads(json.dumps(DEFAULT_DB))
 def utc_now_ts() -> int:
     return int(time.time())
 
-
 def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-
 def user_key(user_id: int) -> str:
     return str(user_id)
-
 
 def escape_text(value: Any) -> str:
     return html.escape(str(value or ""))
 
-
 def extract_price_number() -> int:
     digits = re.sub(r"[^0-9]", "", GAME_PRICE)
     return int(digits or "0")
-
 
 def mask_user_id(user_id: int) -> str:
     value = str(user_id)
@@ -206,25 +192,20 @@ def mask_user_id(user_id: int) -> str:
         return value
     return value[:2] + "***" + value[-2:]
 
-
 def normalize_game_payload(value: str) -> str:
     return str(value or "").strip().lower().replace("-", "").replace("_", "")
-
 
 def get_game_title(game_id: str) -> str:
     return GAMES.get(game_id, {}).get("title", game_id or "غير معروف")
 
-
 def get_device_title(device_code: str) -> str:
     return DEVICES.get(device_code, device_code or "غير معروف")
-
 
 def safe_int(value: Any, default: int = 0) -> int:
     try:
         return int(value)
     except Exception:
         return default
-
 
 def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
     merged = json.loads(json.dumps(base))
@@ -234,7 +215,6 @@ def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, An
         else:
             merged[key] = value
     return merged
-
 
 def load_db_sync() -> Dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -250,7 +230,6 @@ def load_db_sync() -> Dict[str, Any]:
         return json.loads(json.dumps(DEFAULT_DB))
 
     return merge_defaults(DEFAULT_DB, loaded)
-
 
 def save_db_sync() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -268,13 +247,11 @@ def save_db_sync() -> None:
 
     temp_file.replace(DB_FILE)
 
-
 async def update_db(mutator):
     async with _db_lock:
         result = mutator(db)
         save_db_sync()
         return result
-
 
 def add_audit(data: Dict[str, Any], action: str, details: Dict[str, Any]) -> None:
     item = {
@@ -284,7 +261,6 @@ def add_audit(data: Dict[str, Any], action: str, details: Dict[str, Any]) -> Non
     }
     data.setdefault("audit_log", []).append(item)
     data["audit_log"] = data["audit_log"][-200:]
-
 
 async def cleanup_expired_data() -> None:
     now = utc_now_ts()
@@ -325,7 +301,6 @@ async def cleanup_expired_data() -> None:
     if removed_payments or removed_sessions:
         logger.info("Cleaned expired data: payments=%s sessions=%s", removed_payments, removed_sessions)
 
-
 async def is_rate_limited(user_id: int, action: str) -> bool:
     if is_admin(user_id):
         return False
@@ -342,7 +317,6 @@ async def is_rate_limited(user_id: int, action: str) -> bool:
 
     return await update_db(mutate)
 
-
 async def next_order_id() -> str:
     def mutate(data):
         current = safe_int(data["stats"].get("order_counter"), 1000) + 1
@@ -350,7 +324,6 @@ async def next_order_id() -> str:
         return "PZ-" + str(current)
 
     return await update_db(mutate)
-
 
 async def register_user(user) -> None:
     if is_admin(user.id):
@@ -373,7 +346,6 @@ async def register_user(user) -> None:
             add_audit(data, "new_user", {"user_id": user.id, "username": user.username or ""})
 
     await update_db(mutate)
-
 
 async def upsert_session(user, changes: Dict[str, Any], push_screen: Optional[str] = None) -> Dict[str, Any]:
     key = user_key(user.id)
@@ -402,7 +374,6 @@ async def upsert_session(user, changes: Dict[str, Any], push_screen: Optional[st
 
     return await update_db(mutate)
 
-
 async def set_last_menu_message(user_id: int, message_id: int) -> None:
     key = user_key(user_id)
 
@@ -417,10 +388,8 @@ async def set_last_menu_message(user_id: int, message_id: int) -> None:
 
     await update_db(mutate)
 
-
 def get_session(user_id: int) -> Dict[str, Any]:
     return db.get("sessions", {}).get(user_key(user_id), {})
-
 
 async def delete_last_menu_if_possible(context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int) -> None:
     session = get_session(user_id)
@@ -432,7 +401,6 @@ async def delete_last_menu_if_possible(context: ContextTypes.DEFAULT_TYPE, chat_
     except Exception:
         pass
 
-
 def get_user_orders(user_id: int) -> List[Dict[str, Any]]:
     orders = [
         order for order in db.get("orders", {}).values()
@@ -441,11 +409,9 @@ def get_user_orders(user_id: int) -> List[Dict[str, Any]]:
     orders.sort(key=lambda item: safe_int(item.get("created_ts"), 0), reverse=True)
     return orders
 
-
 def get_user_latest_order(user_id: int) -> Optional[Dict[str, Any]]:
     orders = get_user_orders(user_id)
     return orders[0] if orders else None
-
 
 def get_pending_user_order(user_id: int) -> Optional[Dict[str, Any]]:
     for order in db.get("pending_payments", {}).values():
@@ -453,14 +419,12 @@ def get_pending_user_order(user_id: int) -> Optional[Dict[str, Any]]:
             return order
     return None
 
-
 # =====================================================
 # Keyboards
 # =====================================================
 
 def kb(rows: List[List[InlineKeyboardButton]]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
-
 
 def main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     rows = [
@@ -483,14 +447,12 @@ def main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
     return kb(rows)
 
-
 def games_keyboard() -> InlineKeyboardMarkup:
     rows = []
     for game_id, game in GAMES.items():
         rows.append([InlineKeyboardButton(f"{game['emoji']} {game['title']}", callback_data=f"game:{game_id}")])
     rows.append([InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")])
     return kb(rows)
-
 
 def devices_keyboard(game_id: str) -> InlineKeyboardMarkup:
     rows = []
@@ -499,7 +461,6 @@ def devices_keyboard(game_id: str) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")])
     return kb(rows)
 
-
 def payment_keyboard() -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("📸 أرسلت الإيصال", callback_data="pay:receipt_help")],
@@ -507,13 +468,11 @@ def payment_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
     ])
 
-
 def support_keyboard() -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
         [InlineKeyboardButton("⬅️ رجوع خطوة", callback_data="nav:back")],
     ])
-
 
 def admin_panel_keyboard() -> InlineKeyboardMarkup:
     return kb([
@@ -535,7 +494,6 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
         ],
     ])
 
-
 def admin_review_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [
@@ -550,7 +508,6 @@ def admin_review_keyboard(order_id: str) -> InlineKeyboardMarkup:
         ],
     ])
 
-
 def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("❌ الإيصال غير واضح", callback_data=f"admin:reject_reason:{order_id}:unclear")],
@@ -559,7 +516,6 @@ def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("❌ صورة غير صالحة", callback_data=f"admin:reject_reason:{order_id}:invalid_image")],
         [InlineKeyboardButton("⬅️ رجوع", callback_data=f"admin:back:{order_id}")],
     ])
-
 
 def download_keyboard(download_url: str, order_id: str) -> InlineKeyboardMarkup:
     return kb([
@@ -571,19 +527,16 @@ def download_keyboard(download_url: str, order_id: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📞 أحتاج مساعدة", callback_data=f"download:support:{order_id}")],
     ])
 
-
 def download_back_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("⬅️ رجوع لزر التحميل", callback_data=f"download:back:{order_id}")],
     ])
-
 
 def download_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("📞 تواصل عبر إنستغرام", url=SUPPORT_URL)],
         [InlineKeyboardButton("⬅️ رجوع لزر التحميل", callback_data=f"download:back:{order_id}")],
     ])
-
 
 def receipt_submitted_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
@@ -592,12 +545,10 @@ def receipt_submitted_keyboard(order_id: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("🎮 اختيار لعبة أخرى", callback_data="menu:games")],
     ])
 
-
 def receipt_back_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("⬅️ رجوع لرسالة الإيصال", callback_data=f"receipt:back:{order_id}")],
     ])
-
 
 def order_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
     return kb([
@@ -605,20 +556,17 @@ def order_support_keyboard(order_id: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("⬅️ رجوع لرسالة الإيصال", callback_data=f"receipt:back:{order_id}")],
     ])
 
-
 def confirm_reset_keyboard() -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("✅ نعم، صفّر العدادات", callback_data="admin:reset_stats")],
         [InlineKeyboardButton("❌ إلغاء", callback_data="admin:panel")],
     ])
 
-
 def confirm_clear_sessions_keyboard() -> InlineKeyboardMarkup:
     return kb([
         [InlineKeyboardButton("✅ نعم، احذف الجلسات", callback_data="admin:clear_sessions")],
         [InlineKeyboardButton("❌ إلغاء", callback_data="admin:panel")],
     ])
-
 
 # =====================================================
 # Text Builders
@@ -633,13 +581,11 @@ def home_text(user_id: int) -> str:
         + admin_line
     )
 
-
 def games_text() -> str:
     return (
         "🎮 <b>الألعاب المتوفرة</b>\n\n"
         "اختر اللعبة التي تريد تحميلها:"
     )
-
 
 def game_details_text(game_id: str) -> str:
     game = GAMES[game_id]
@@ -648,7 +594,6 @@ def game_details_text(game_id: str) -> str:
         f"{escape_text(game['description'])}\n\n"
         "اختر نوع جهازك:"
     )
-
 
 def payment_text(game_title: Optional[str] = None, device_title: Optional[str] = None) -> str:
     lines = [
@@ -674,7 +619,6 @@ def payment_text(game_title: Optional[str] = None, device_title: Optional[str] =
 
     return "\n".join(lines)
 
-
 def receipt_help_text() -> str:
     return (
         "📸 <b>إرسال الإيصال</b>\n\n"
@@ -685,7 +629,6 @@ def receipt_help_text() -> str:
         "• لا ترسل أكثر من صورة لنفس الطلب.\n"
         "• انتظر مراجعة الإدارة."
     )
-
 
 def order_status_text(order: Dict[str, Any]) -> str:
     game_title = get_game_title(order.get("game"))
@@ -711,7 +654,6 @@ def order_status_text(order: Dict[str, Any]) -> str:
 
     return "\n".join(lines)
 
-
 def receipt_received_text(order: Dict[str, Any]) -> str:
     return (
         "✅ <b>تم استلام إيصال الدفع بنجاح</b>\n\n"
@@ -723,14 +665,12 @@ def receipt_received_text(order: Dict[str, Any]) -> str:
         "بعد الموافقة سيصلك زر التحميل هنا مباشرة."
     )
 
-
 def no_order_text() -> str:
     return (
         "📦 <b>حالة طلبي</b>\n\n"
         "لا يوجد لديك طلب حاليًا.\n\n"
         "ابدأ باختيار لعبة من زر <b>الألعاب</b>."
     )
-
 
 def my_games_text(user_id: int) -> str:
     orders = [order for order in get_user_orders(user_id) if order.get("status") == "approved"]
@@ -751,7 +691,6 @@ def my_games_text(user_id: int) -> str:
     lines.append("لرابط جديد، اطلب اللعبة مرة أخرى أو تواصل مع الدعم.")
     return "\n".join(lines)
 
-
 def help_text() -> str:
     return (
         "❓ <b>المساعدة</b>\n\n"
@@ -765,7 +704,6 @@ def help_text() -> str:
         "📌 لا تشارك الرابط مع أي شخص."
     )
 
-
 def download_ready_text(order: Dict[str, Any]) -> str:
     order_id = order.get("order_id", "")
     game_title = get_game_title(order.get("game"))
@@ -778,7 +716,6 @@ def download_ready_text(order: Dict[str, Any]) -> str:
         "اضغط زر التحميل بالأسفل.\n"
         "⚠️ الرابط مؤقت وخاص بك، لا تشاركه مع أي شخص."
     )
-
 
 def support_text(user_id: int) -> str:
     latest = get_user_latest_order(user_id)
@@ -800,7 +737,6 @@ def support_text(user_id: int) -> str:
 
     return "\n".join(lines)
 
-
 def install_instructions_text(device_code: Optional[str] = None) -> str:
     if device_code == "ios":
         return (
@@ -816,7 +752,6 @@ def install_instructions_text(device_code: Optional[str] = None) -> str:
         "4️⃣ إذا ظهر تحذير، فعّل التثبيت من مصادر غير معروفة.\n"
         "5️⃣ اضغط تثبيت ثم افتح اللعبة."
     )
-
 
 def order_caption(order: Dict[str, Any]) -> str:
     username = order.get("username") or "لا يوجد"
@@ -835,7 +770,6 @@ def order_caption(order: Dict[str, Any]) -> str:
         "🕒 الوقت: " + escape_text(order.get("created_at_text")) + "\n"
         "📌 الحالة: " + escape_text(STATUS_LABELS.get(order.get("status", "pending"), order.get("status", "pending")))
     )
-
 
 def admin_stats_text() -> str:
     stats = db.get("stats", {})
@@ -858,7 +792,6 @@ def admin_stats_text() -> str:
         f"💰 المبيعات التقريبية: <b>{sales} IQD</b>"
     )
 
-
 def admin_pending_text() -> str:
     pending = list(db.get("pending_payments", {}).values())
     pending.sort(key=lambda item: safe_int(item.get("created_ts"), 0), reverse=True)
@@ -874,7 +807,6 @@ def admin_pending_text() -> str:
             f"{escape_text(get_device_title(order.get('device')))}"
         )
     return "\n".join(lines)
-
 
 def admin_orders_text() -> str:
     orders = list(db.get("orders", {}).values())
@@ -893,7 +825,6 @@ def admin_orders_text() -> str:
         )
     return "\n".join(lines)
 
-
 # =====================================================
 # UI Send/Edit Helpers
 # =====================================================
@@ -907,7 +838,6 @@ async def send_new_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, text
     msg = await update.message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup, disable_web_page_preview=True)
     await set_last_menu_message(user.id, msg.message_id)
 
-
 async def edit_query_message(query, text: str, reply_markup: InlineKeyboardMarkup) -> None:
     try:
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=reply_markup, disable_web_page_preview=True)
@@ -919,15 +849,12 @@ async def edit_query_message(query, text: str, reply_markup: InlineKeyboardMarku
     except Exception:
         await query.message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup, disable_web_page_preview=True)
 
-
 async def show_home_from_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await send_new_menu(update, context, home_text(update.message.from_user.id), main_menu_keyboard(update.message.from_user.id))
 
-
 async def show_home_from_query(query) -> None:
     await edit_query_message(query, home_text(query.from_user.id), main_menu_keyboard(query.from_user.id))
-
 
 # =====================================================
 # Download API
@@ -941,7 +868,6 @@ def sign_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     signature = hmac.new(DOWNLOAD_API_SECRET.encode("utf-8"), message, "sha256").hexdigest()
     payload["signature"] = signature
     return payload
-
 
 async def generate_download_link(user_id: int, game_id: str, device_code: str, order_id: str) -> Optional[str]:
     payload = {
@@ -962,7 +888,6 @@ async def generate_download_link(user_id: int, game_id: str, device_code: str, o
                 return None
             data = await response.json()
             return data.get("download_url")
-
 
 # =====================================================
 # Bot Commands Setup
@@ -989,7 +914,6 @@ async def setup_bot_commands(application):
         ],
         scope=BotCommandScopeChat(chat_id=ADMIN_CHAT_ID),
     )
-
 
 # =====================================================
 # Bot Handlers
@@ -1018,11 +942,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await show_home_from_update(update, context)
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
         await send_new_menu(update, context, help_text(), kb([[InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")]]))
-
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -1046,7 +968,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         main_menu_keyboard(user.id),
     )
 
-
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
@@ -1068,7 +989,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "استخدم الأزرار بالأسفل لاختيار اللعبة وإتمام الطلب.\n\nإذا كنت تريد الدفع، اختر اللعبة أولًا ثم أرسل صورة الإيصال.",
         main_menu_keyboard(user.id),
     )
-
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -1161,7 +1081,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         receipt_submitted_keyboard(order_id),
     )
 
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query:
@@ -1213,7 +1132,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             pass
 
-
 async def handle_nav_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     session = get_session(query.from_user.id)
     history = session.get("history", []) or []
@@ -1234,7 +1152,6 @@ async def handle_nav_callback(query, context: ContextTypes.DEFAULT_TYPE, data: s
     await update_db(mutate)
     await show_screen(query, previous, push=False)
 
-
 async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     screen = data.split(":", 1)[1]
 
@@ -1249,7 +1166,6 @@ async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: 
         return
 
     await show_screen(query, screen, push=True)
-
 
 async def show_screen(query, screen: str, push: bool = True):
     user = query.from_user
@@ -1318,7 +1234,6 @@ async def show_screen(query, screen: str, push: bool = True):
 
     await show_home_from_query(query)
 
-
 async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     # أزرار خاصة برسالة الإيصال حتى لا تعتمد على history ولا ترجع للرئيسية خطأ.
     parts = data.split(":", 2)
@@ -1348,7 +1263,6 @@ async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, dat
         return
 
     await query.answer("خيار غير معروف", show_alert=True)
-
 
 async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     # أزرار خاصة برسالة التحميل فقط. لا تعتمد على history حتى لا يضيع زر التحميل.
@@ -1393,7 +1307,6 @@ async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, da
 
     await query.answer("خيار غير معروف", show_alert=True)
 
-
 async def handle_game_callback(query, data: str):
     game_id = data.split(":", 1)[1]
     if game_id not in GAMES:
@@ -1402,7 +1315,6 @@ async def handle_game_callback(query, data: str):
 
     await upsert_session(query.from_user, {"game": game_id, "device": None}, push_screen="game")
     await edit_query_message(query, game_details_text(game_id), devices_keyboard(game_id))
-
 
 async def handle_device_callback(query, data: str):
     _, game_id, device_code = data.split(":")
@@ -1416,7 +1328,6 @@ async def handle_device_callback(query, data: str):
         payment_text(GAMES[game_id]["title"], DEVICES[device_code]),
         payment_keyboard(),
     )
-
 
 async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str, user_id: int):
     if not is_admin(user_id):
@@ -1531,7 +1442,6 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await approve_order(query, context, order_id)
         return
 
-
 async def reset_stats_only() -> None:
     def mutate(data):
         order_counter = safe_int(data.get("stats", {}).get("order_counter"), 1000)
@@ -1549,7 +1459,6 @@ async def reset_stats_only() -> None:
 
     await update_db(mutate)
 
-
 async def clear_sessions_only() -> None:
     def mutate(data):
         data["sessions"] = {}
@@ -1557,7 +1466,6 @@ async def clear_sessions_only() -> None:
         add_audit(data, "sessions_cleared", {"by": ADMIN_CHAT_ID})
 
     await update_db(mutate)
-
 
 async def export_db_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     export_path = DATA_DIR / f"playzone_export_{int(time.time())}.json"
@@ -1581,7 +1489,6 @@ async def export_db_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> None:
             export_path.unlink(missing_ok=True)
         except Exception:
             pass
-
 
 async def handle_admin_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     if not update.message or not is_admin(update.message.from_user.id):
@@ -1610,7 +1517,6 @@ async def handle_admin_broadcast_text(update: Update, context: ContextTypes.DEFA
         f"📢 تم إرسال التنبيه.\n\n✅ وصل: {sent}\n⚠️ فشل: {failed}",
         reply_markup=admin_panel_keyboard(),
     )
-
 
 async def reject_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str, reason_key: str) -> None:
     reason_text = REJECTION_REASONS.get(reason_key, "تم رفض الإيصال")
@@ -1655,7 +1561,6 @@ async def reject_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str,
         )
     except Exception:
         pass
-
 
 async def approve_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str) -> None:
     order = db.get("pending_payments", {}).get(order_id)
@@ -1749,7 +1654,6 @@ async def approve_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str
             parse_mode="HTML",
         )
 
-
 async def mark_link_failed(order_id: str) -> None:
     def mutate(data):
         current = data["pending_payments"].get(order_id)
@@ -1761,7 +1665,6 @@ async def mark_link_failed(order_id: str) -> None:
 
     await update_db(mutate)
 
-
 # =====================================================
 # Admin Commands
 # =====================================================
@@ -1771,25 +1674,21 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await send_new_menu(update, context, "👑 <b>لوحة الأدمن</b>\n\nاختر الإجراء:", admin_panel_keyboard())
 
-
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not is_admin(update.message.from_user.id):
         return
     await cleanup_expired_data()
     await send_new_menu(update, context, admin_stats_text(), admin_panel_keyboard())
 
-
 async def admin_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not is_admin(update.message.from_user.id):
         return
     await send_new_menu(update, context, admin_pending_text(), admin_panel_keyboard())
 
-
 async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not is_admin(update.message.from_user.id):
         return
     await send_new_menu(update, context, admin_orders_text(), admin_panel_keyboard())
-
 
 async def reset_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not is_admin(update.message.from_user.id):
@@ -1797,10 +1696,8 @@ async def reset_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await reset_stats_only()
     await send_new_menu(update, context, "✅ تم تصفير عدادات البوت.\n\n" + admin_stats_text(), admin_panel_keyboard())
 
-
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.exception("Unhandled error: %s", context.error)
-
 
 # =====================================================
 # Main
@@ -1834,10 +1731,7 @@ async def main():
     application.add_error_handler(error_handler)
 
     logger.info("PlayZone bot is running...")
-
-    await application.bot.delete_webhook(drop_pending_updates=True)
     await application.run_polling(drop_pending_updates=True)
-
 
 if __name__ == "__main__":
     try:
