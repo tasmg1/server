@@ -8,6 +8,7 @@ import signal
 import asyncio
 import logging
 import re
+import copy # [تمت الإضافة: لتسريع نسخ البيانات بدلاً من json]
 from pathlib import Path
 from datetime import datetime, timezone
 from threading import Thread
@@ -161,7 +162,8 @@ DEFAULT_DB = {
 }
 
 _db_lock = asyncio.Lock()
-db: Dict[str, Any] = json.loads(json.dumps(DEFAULT_DB))
+# [تم التعديل: استخدام copy.deepcopy بدلاً من json لتحسين الأداء]
+db: Dict[str, Any] = copy.deepcopy(DEFAULT_DB)
 
 # =====================================================
 # Helpers
@@ -208,7 +210,8 @@ def safe_int(value: Any, default: int = 0) -> int:
         return default
 
 def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
-    merged = json.loads(json.dumps(base))
+    # [تم التعديل: استخدام copy.deepcopy لتحسين الأداء]
+    merged = copy.deepcopy(base)
     for key, value in loaded.items():
         if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
             merged[key].update(value)
@@ -220,14 +223,14 @@ def load_db_sync() -> Dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     if not DB_FILE.exists():
-        return json.loads(json.dumps(DEFAULT_DB))
+        return copy.deepcopy(DEFAULT_DB)
 
     try:
         with DB_FILE.open("r", encoding="utf-8") as file:
             loaded = json.load(file)
     except Exception as error:
         logger.error("Could not read DB file: %s", error)
-        return json.loads(json.dumps(DEFAULT_DB))
+        return copy.deepcopy(DEFAULT_DB)
 
     return merge_defaults(DEFAULT_DB, loaded)
 
@@ -250,7 +253,8 @@ def save_db_sync() -> None:
 async def update_db(mutator):
     async with _db_lock:
         result = mutator(db)
-        save_db_sync()
+        # [تم التعديل: نقل عملية الحفظ إلى Thread منفصل لتجنب تجميد البوت]
+        await asyncio.to_thread(save_db_sync)
         return result
 
 def add_audit(data: Dict[str, Any], action: str, details: Dict[str, Any]) -> None:
@@ -260,7 +264,8 @@ def add_audit(data: Dict[str, Any], action: str, details: Dict[str, Any]) -> Non
         "details": details,
     }
     data.setdefault("audit_log", []).append(item)
-    data["audit_log"] = data["audit_log"][-200:]
+    # [تم التعديل: زيادة سجل التدقيق إلى 5000 بدلاً من 200 لحماية البيانات المالية]
+    data["audit_log"] = data["audit_log"][-5000:]
 
 async def cleanup_expired_data() -> None:
     now = utc_now_ts()
@@ -1085,10 +1090,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query:
         return
+    
+    # [تم التعديل: إضافة حماية الأزرار من الضغط المتكرر الذي كان سيعلق البوت]
+    user_id = query.from_user.id
+    if await is_rate_limited(user_id, "button"):
+        await query.answer("⏳ يرجى الانتظار قليلاً لتجنب الضغط على السيرفر...", show_alert=True)
+        return
 
     await query.answer()
     data = query.data or ""
-    user_id = query.from_user.id
 
     try:
         if data.startswith("admin:"):
