@@ -554,6 +554,9 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("📉 تصدير CSV (Excel)", callback_data="admin:export_excel"),
         ],
         [
+            InlineKeyboardButton("🚫 إدارة المحظورين", callback_data="admin:banned_list"),
+        ],
+        [
             InlineKeyboardButton(maintenance_btn, callback_data="admin:toggle_maintenance"),
             InlineKeyboardButton("🏠 القائمة", callback_data="menu:home"),
         ],
@@ -1545,6 +1548,47 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.answer("تم حظر المستخدم ولن يتمكن من استخدام البوت بعد الآن.", show_alert=True)
         return
 
+    # === الكود الجديد لإدارة وفك الحظر ===
+
+    # 1. عرض قائمة المحظورين
+    if action == "banned_list":
+        banned = db.get("banned_users", [])
+        if not banned:
+            await query.answer("لا يوجد مستخدمين محظورين حالياً.", show_alert=True)
+            return
+        
+        rows = []
+        for uid in banned:
+            rows.append([InlineKeyboardButton(f"✅ فك الحظر: {uid}", callback_data=f"admin:unban:{uid}")])
+        rows.append([InlineKeyboardButton("⬅️ رجوع", callback_data="admin:panel")])
+        
+        await edit_query_message(query, "🚫 <b>قائمة المحظورين</b>\n\nاضغط على المعرف لفك الحظر عنه فوراً:", kb(rows))
+        return
+
+    # 2. تنفيذ عملية فك الحظر
+    if action == "unban":
+        target_uid = int(parts[2])
+        def mutate_unban(data):
+            if target_uid in data.setdefault("banned_users", []):
+                data["banned_users"].remove(target_uid)
+        
+        await update_db(mutate_unban)
+        await query.answer("تم فك الحظر عن المستخدم بنجاح.", show_alert=True)
+        
+        # إعادة تحديث القائمة فوراً
+        banned = db.get("banned_users", [])
+        if not banned:
+            await edit_query_message(query, "👑 <b>لوحة الأدمن</b>\n\nاختر الإجراء المطلوب:", admin_panel_keyboard())
+        else:
+            rows = []
+            for uid in banned:
+                rows.append([InlineKeyboardButton(f"✅ فك الحظر: {uid}", callback_data=f"admin:unban:{uid}")])
+            rows.append([InlineKeyboardButton("⬅️ رجوع", callback_data="admin:panel")])
+            await edit_query_message(query, "🚫 <b>قائمة المحظورين</b>\n\nاضغط على المعرف لفك الحظر عنه فوراً:", kb(rows))
+        return
+
+    # ==================================
+
     # Order actions
     order_id = parts[2] if len(parts) > 2 else ""
     if not order_id:
@@ -1916,4 +1960,4 @@ if __name__ == "__main__":
     except Exception as error:
         logger.exception("General error: %s", error)
 
-# redeploy trigger ultra professional + Advanced Control
+# redeploy trigger ultra professional + Advanced Control + Unban System
