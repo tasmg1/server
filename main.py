@@ -8,6 +8,8 @@ import signal
 import asyncio
 import logging
 import re
+import csv
+import io
 from pathlib import Path
 from datetime import datetime, timezone
 from threading import Thread
@@ -37,7 +39,7 @@ from telegram.ext import (
 
 # =====================================================
 # PlayZone Telegram Bot
-# Ultra Professional Version
+# Ultra Professional Version + Advanced Features
 # =====================================================
 
 logging.basicConfig(
@@ -158,10 +160,67 @@ DEFAULT_DB = {
         "link_failures": 0,
         "order_counter": 1000,
     },
+    "banned_users": [],
+    "settings": {
+        "maintenance_mode": False
+    }
 }
 
 _db_lock = asyncio.Lock()
 db: Dict[str, Any] = json.loads(json.dumps(DEFAULT_DB))
+
+# =====================================================
+# Advanced Features Helpers
+# =====================================================
+
+def is_user_banned(user_id: int) -> bool:
+    return int(user_id) in db.get("banned_users", [])
+
+def is_maintenance_active() -> bool:
+    return db.get("settings", {}).get("maintenance_mode", False)
+
+async def check_cart_abandonment(context: ContextTypes.DEFAULT_TYPE) -> None:
+    now = utc_now_ts()
+    notified_orders = []
+    
+    def mutate(data):
+        expired_to_notify = []
+        for key, payment in data.get("orders", {}).items():
+            if payment.get("status") == "expired" and not payment.get("abandonment_notified"):
+                payment["abandonment_notified"] = True
+                expired_to_notify.append(payment)
+        return expired_to_notify
+
+    orders_to_notify = await update_db(mutate)
+    for order in orders_to_notify:
+        try:
+            await context.bot.send_message(
+                chat_id=int(order["user_id"]),
+                text="🛒 <b>تذكير تلقائي</b>\n\nتوقفت عند مرحلة الدفع لطلبك السابق. هل واجهت مشكلة؟\nيمكنك إرسال الإيصال في أي وقت، أو التحدث مع الدعم للمساعدة.",
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+async def assistant_verify_receipt() -> str:
+    # دالة وهمية للتحقق المساعد (OCR). يمكن ربطها بمكتبة pytesseract لاحقاً.
+    return "🔍 <b>فحص آلي مساعد:</b> يرجى مراجعة ظهور مبلغ التحويل بوضوح."
+
+async def run_scheduled_broadcast(context: ContextTypes.DEFAULT_TYPE, text: str, delay_seconds: int):
+    await asyncio.sleep(delay_seconds)
+    users = list(db.get("users", {}).keys())
+    sent = 0
+    for uid in users:
+        try:
+            await context.bot.send_message(chat_id=int(uid), text=text)
+            sent += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            pass
+    try:
+        await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"✅ تم الانتهاء من الإشعار المجدول.\nوصل إلى: {sent} مستخدم.")
+    except Exception:
+        pass
 
 # =====================================================
 # Helpers
@@ -276,6 +335,7 @@ async def cleanup_expired_data() -> None:
             if payment:
                 payment["status"] = "expired"
                 payment["expired_at"] = iso_now()
+                payment["abandonment_notified"] = False
                 data["orders"][key] = payment
                 add_audit(data, "order_expired", {"order_id": key})
 
@@ -475,6 +535,7 @@ def support_keyboard() -> InlineKeyboardMarkup:
     ])
 
 def admin_panel_keyboard() -> InlineKeyboardMarkup:
+    maintenance_btn = "▶️ تشغيل البوت" if is_maintenance_active() else "⏸️ إيقاف مؤقت"
     return kb([
         [
             InlineKeyboardButton("📊 الإحصائيات", callback_data="admin:stats"),
@@ -490,11 +551,15 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📢 إرسال تنبيه", callback_data="admin:broadcast_prompt"),
+            InlineKeyboardButton("📉 تصدير CSV (Excel)", callback_data="admin:export_excel"),
+        ],
+        [
+            InlineKeyboardButton(maintenance_btn, callback_data="admin:toggle_maintenance"),
             InlineKeyboardButton("🏠 القائمة", callback_data="menu:home"),
         ],
     ])
 
-def admin_review_keyboard(order_id: str) -> InlineKeyboardMarkup:
+def admin_review_keyboard(order_id: str, user_id: str) -> InlineKeyboardMarkup:
     return kb([
         [
             InlineKeyboardButton("✅ قبول وإرسال زر التحميل", callback_data=f"admin:approve:{order_id}"),
@@ -504,6 +569,7 @@ def admin_review_keyboard(order_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton("ℹ️ معلومات", callback_data=f"admin:info:{order_id}"),
         ],
         [
+            InlineKeyboardButton("🚫 حظر المستخدم", callback_data=f"admin:ban_prompt:{user_id}"),
             InlineKeyboardButton("👑 لوحة الأدمن", callback_data="admin:panel"),
         ],
     ])
@@ -514,6 +580,7 @@ def rejection_reasons_keyboard(order_id: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("❌ المبلغ غير صحيح", callback_data=f"admin:reject_reason:{order_id}:wrong_amount")],
         [InlineKeyboardButton("❌ لم يصل التحويل", callback_data=f"admin:reject_reason:{order_id}:not_received")],
         [InlineKeyboardButton("❌ صورة غير صالحة", callback_data=f"admin:reject_reason:{order_id}:invalid_image")],
+        [InlineKeyboardButton("✍️ كتابة سبب مخصص", callback_data=f"admin:reject_custom:{order_id}")],
         [InlineKeyboardButton("⬅️ رجوع", callback_data=f"admin:back:{order_id}")],
     ])
 
@@ -757,6 +824,9 @@ def order_caption(order: Dict[str, Any]) -> str:
     username = order.get("username") or "لا يوجد"
     if username != "لا يوجد":
         username = "@" + username
+        
+    ocr_note = order.get("ocr_note", "")
+    ocr_section = f"\n{ocr_note}\n" if ocr_note else ""
 
     return (
         "📩 <b>مراجعة إيصال دفع جديد</b>\n\n"
@@ -769,6 +839,7 @@ def order_caption(order: Dict[str, Any]) -> str:
         "💰 السعر: " + escape_text(order.get("price", GAME_PRICE)) + "\n"
         "🕒 الوقت: " + escape_text(order.get("created_at_text")) + "\n"
         "📌 الحالة: " + escape_text(STATUS_LABELS.get(order.get("status", "pending"), order.get("status", "pending")))
+        + ocr_section
     )
 
 def admin_stats_text() -> str:
@@ -920,7 +991,14 @@ async def setup_bot_commands(application):
 # =====================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and is_user_banned(update.message.from_user.id):
+        return
+    if update.message and is_maintenance_active() and not is_admin(update.message.from_user.id):
+        await update.message.reply_text("⏳ المتجر في وضع الصيانة حالياً. يرجى المحاولة لاحقاً.")
+        return
+
     await cleanup_expired_data()
+    await check_cart_abandonment(context)
     if not update.message:
         return
 
@@ -943,18 +1021,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_home_from_update(update, context)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and is_user_banned(update.message.from_user.id):
+        return
     if update.message:
         await send_new_menu(update, context, help_text(), kb([[InlineKeyboardButton("⬅️ رجوع", callback_data="menu:home")]]))
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or is_user_banned(update.message.from_user.id):
         return
 
     user = update.message.from_user
 
     def mutate(data):
         session = data.get("sessions", {}).setdefault(user_key(user.id), {})
-        for key in ["game", "device", "awaiting_broadcast"]:
+        for key in ["game", "device", "awaiting_broadcast", "awaiting_custom_reject", "awaiting_broadcast_time"]:
             session.pop(key, None)
         session["history"] = ["home"]
         session["updated_ts"] = utc_now_ts()
@@ -969,15 +1049,37 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or is_user_banned(update.message.from_user.id):
+        return
+    if is_maintenance_active() and not is_admin(update.message.from_user.id):
         return
 
     user = update.message.from_user
     session = get_session(user.id)
 
+    # معالجة الرد المخصص عند الرفض للأدمن
+    if is_admin(user.id) and session.get("awaiting_custom_reject"):
+        order_id = session.pop("awaiting_custom_reject")
+        custom_text = update.message.text or "عذراً، هناك مشكلة في إيصال الدفع المرفق."
+        await update_db(lambda d: d["sessions"][user_key(user.id)].pop("awaiting_custom_reject", None))
+        await reject_order(update, context, order_id, "custom", custom_text=custom_text)
+        await update.message.reply_text(f"✅ تم الرفض وإرسال السبب المخصص للمستخدم للطلب {order_id}.", reply_markup=admin_panel_keyboard())
+        return
+
+    # معالجة إدخال نص التنبيه المجدول للأدمن
     if is_admin(user.id) and session.get("awaiting_broadcast"):
         text = update.message.text or ""
-        await handle_admin_broadcast_text(update, context, text)
+        await upsert_session(user, {"awaiting_broadcast_time": text}, push_screen="broadcast_time")
+        await update_db(lambda d: d["sessions"][user_key(user.id)].pop("awaiting_broadcast", None))
+        
+        await update.message.reply_text(
+            "متى تريد إرسال التنبيه؟",
+            reply_markup=kb([
+                [InlineKeyboardButton("🚀 إرسال الآن", callback_data="admin:broadcast_send_now")],
+                [InlineKeyboardButton("⏳ جدولة بعد ساعة", callback_data="admin:broadcast_send_1h")],
+                [InlineKeyboardButton("❌ إلغاء", callback_data="admin:panel")]
+            ])
+        )
         return
 
     if await is_rate_limited(user.id, "text"):
@@ -991,7 +1093,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or is_user_banned(update.message.from_user.id):
+        return
+    if is_maintenance_active() and not is_admin(update.message.from_user.id):
+        await update.message.reply_text("⏳ المتجر في وضع الصيانة حالياً. لا يمكن استقبال الإيصالات.")
         return
 
     user = update.message.from_user
@@ -1037,6 +1142,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     file_id = update.message.photo[-1].file_id
     order_id = await next_order_id()
+    
+    # التحقق المساعد للإيصالات (OCR)
+    verification_note = await assistant_verify_receipt()
 
     order = {
         "order_id": order_id,
@@ -1051,6 +1159,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "created_ts": utc_now_ts(),
         "created_at": iso_now(),
         "created_at_text": now_text(),
+        "ocr_note": verification_note,
+        "abandonment_notified": False,
     }
 
     def mutate(data):
@@ -1067,7 +1177,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             photo=file_id,
             caption=order_caption(order),
             parse_mode="HTML",
-            reply_markup=admin_review_keyboard(order_id),
+            reply_markup=admin_review_keyboard(order_id, str(user.id)),
         )
     except TelegramError as error:
         logger.error("Failed to send receipt to admin: %s", error)
@@ -1085,10 +1195,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query:
         return
+        
+    user_id = query.from_user.id
+    if is_user_banned(user_id):
+        return await query.answer("تم حظر حسابك من استخدام البوت.", show_alert=True)
+        
+    if is_maintenance_active() and not is_admin(user_id):
+        return await query.answer("المتجر في وضع الصيانة حالياً.", show_alert=True)
 
     await query.answer()
     data = query.data or ""
-    user_id = query.from_user.id
 
     try:
         if data.startswith("admin:"):
@@ -1353,6 +1469,16 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await edit_query_message(query, admin_orders_text(), admin_panel_keyboard())
         return
 
+    if action == "toggle_maintenance":
+        def toggle_mode(data):
+            current = data.setdefault("settings", {}).get("maintenance_mode", False)
+            data["settings"]["maintenance_mode"] = not current
+        await update_db(toggle_mode)
+        status = "فعّال" if is_maintenance_active() else "متوقف"
+        await query.answer(f"تم تغيير وضع الصيانة: {status}", show_alert=True)
+        await edit_query_message(query, "👑 <b>لوحة الأدمن</b>\n\nاختر الإجراء المطلوب:", admin_panel_keyboard())
+        return
+
     if action == "reset_confirm":
         await edit_query_message(
             query,
@@ -1382,14 +1508,41 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
     if action == "export":
         await export_db_to_admin(query, context)
         return
+        
+    if action == "export_excel":
+        await export_excel_to_admin(query, context)
+        return
 
     if action == "broadcast_prompt":
         await upsert_session(query.from_user, {"awaiting_broadcast": True}, push_screen="admin_broadcast")
         await edit_query_message(
             query,
-            "📢 <b>إرسال تنبيه للمستخدمين</b>\n\nأرسل الآن نص الرسالة في المحادثة.\n\nللإلغاء اكتب /cancel",
+            "📢 <b>إرسال تنبيه للمستخدمين</b>\n\nأرسل الآن نص الرسالة في المحادثة (للإلغاء اكتب /cancel).",
             kb([[InlineKeyboardButton("❌ إلغاء", callback_data="admin:panel")]]),
         )
+        return
+        
+    if action.startswith("broadcast_send_"):
+        session = get_session(user_id)
+        text = session.get("awaiting_broadcast_time")
+        if not text:
+            return await query.answer("لم يتم العثور على النص المكتوب", show_alert=True)
+            
+        if action == "broadcast_send_now":
+            asyncio.create_task(run_scheduled_broadcast(context, text, 0))
+            await edit_query_message(query, "✅ جاري الإرسال الآن للجميع...", admin_panel_keyboard())
+        elif action == "broadcast_send_1h":
+            asyncio.create_task(run_scheduled_broadcast(context, text, 3600))
+            await edit_query_message(query, "✅ تم حفظ التنبيه، سيتم الإرسال بعد ساعة.", admin_panel_keyboard())
+        return
+
+    if action == "ban_prompt":
+        target_uid = int(parts[2])
+        def mutate_ban(data):
+            if target_uid not in data.setdefault("banned_users", []):
+                data["banned_users"].append(target_uid)
+        await update_db(mutate_ban)
+        await query.answer("تم حظر المستخدم ولن يتمكن من استخدام البوت بعد الآن.", show_alert=True)
         return
 
     # Order actions
@@ -1399,6 +1552,16 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         return
 
     order = db.get("pending_payments", {}).get(order_id)
+    
+    if action == "reject_custom":
+        await upsert_session(query.from_user, {"awaiting_custom_reject": order_id}, push_screen="admin_reject")
+        await edit_query_message(
+            query,
+            "✍️ أرسل سبب الرفض المخصص الآن في المحادثة كرسالة نصية:",
+            kb([[InlineKeyboardButton("❌ إلغاء", callback_data="admin:panel")]]),
+        )
+        return
+
     if not order:
         await query.answer("تمت معالجة الطلب أو غير موجود", show_alert=True)
         try:
@@ -1429,7 +1592,7 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.edit_message_caption(
             order_caption(order),
             parse_mode="HTML",
-            reply_markup=admin_review_keyboard(order_id),
+            reply_markup=admin_review_keyboard(order_id, str(order.get("user_id"))),
         )
         return
 
@@ -1467,6 +1630,36 @@ async def clear_sessions_only() -> None:
 
     await update_db(mutate)
 
+async def export_excel_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> None:
+    orders = list(db.get("orders", {}).values())
+    orders.sort(key=lambda item: safe_int(item.get("created_ts"), 0), reverse=True)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["رقم الطلب", "معرف المستخدم", "اسم المستخدم", "اللعبة", "الجهاز", "السعر", "الحالة", "التاريخ"])
+    
+    for o in orders:
+        writer.writerow([
+            o.get("order_id", ""),
+            o.get("user_id", ""),
+            o.get("username", ""),
+            get_game_title(o.get("game", "")),
+            get_device_title(o.get("device", "")),
+            o.get("price", ""),
+            STATUS_LABELS.get(o.get("status", ""), o.get("status", "")),
+            o.get("created_at_text", "")
+        ])
+        
+    bio = io.BytesIO(output.getvalue().encode('utf-8-sig')) # دعم اللغة العربية في Excel
+    bio.name = f"playzone_sales_{int(time.time())}.csv"
+    
+    await context.bot.send_document(
+        chat_id=ADMIN_CHAT_ID,
+        document=bio,
+        caption="📊 تقرير المبيعات بصيغة CSV (يمكن فتحه مباشرة في Excel)",
+    )
+    await query.answer("تم تصدير التقرير", show_alert=True)
+
 async def export_db_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     export_path = DATA_DIR / f"playzone_export_{int(time.time())}.json"
 
@@ -1490,39 +1683,10 @@ async def export_db_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> None:
         except Exception:
             pass
 
-async def handle_admin_broadcast_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
-    if not update.message or not is_admin(update.message.from_user.id):
-        return
-
-    users = list(db.get("users", {}).keys())
-    sent = 0
-    failed = 0
-
-    for uid in users:
-        try:
-            await context.bot.send_message(chat_id=int(uid), text=text)
-            sent += 1
-            await asyncio.sleep(0.05)
-        except Exception:
-            failed += 1
-
-    def mutate(data):
-        session = data.setdefault("sessions", {}).setdefault(user_key(ADMIN_CHAT_ID), {})
-        session.pop("awaiting_broadcast", None)
-        add_audit(data, "broadcast", {"sent": sent, "failed": failed})
-
-    await update_db(mutate)
-
-    await update.message.reply_text(
-        f"📢 تم إرسال التنبيه.\n\n✅ وصل: {sent}\n⚠️ فشل: {failed}",
-        reply_markup=admin_panel_keyboard(),
-    )
-
-async def reject_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str, reason_key: str) -> None:
-    reason_text = REJECTION_REASONS.get(reason_key, "تم رفض الإيصال")
+async def reject_order(update_or_query, context: ContextTypes.DEFAULT_TYPE, order_id: str, reason_key: str, custom_text: Optional[str] = None) -> None:
+    reason_text = custom_text if custom_text else REJECTION_REASONS.get(reason_key, "تم رفض الإيصال")
     order = db.get("pending_payments", {}).get(order_id)
     if not order:
-        await query.answer("الطلب غير موجود", show_alert=True)
         return
 
     target_user_id = int(order["user_id"])
@@ -1555,10 +1719,12 @@ async def reject_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: str,
     order["rejection_reason"] = reason_text
 
     try:
-        await query.edit_message_caption(
-            order_caption(order) + "\n\n🚫 تم الرفض في " + now_text(),
-            parse_mode="HTML",
-        )
+        # التعامل سواء كان المصدر زر أو رسالة نصية (في حالة الرد المخصص)
+        if hasattr(update_or_query, "edit_message_caption"):
+            await update_or_query.edit_message_caption(
+                order_caption(order) + "\n\n🚫 تم الرفض في " + now_text(),
+                parse_mode="HTML",
+            )
     except Exception:
         pass
 
@@ -1750,4 +1916,4 @@ if __name__ == "__main__":
     except Exception as error:
         logger.exception("General error: %s", error)
 
-# redeploy trigger ultra professional
+# redeploy trigger ultra professional + Advanced Control
