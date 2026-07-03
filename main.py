@@ -93,6 +93,10 @@ if FB_JSON and FB_URL:
         logger.info("✅ Connected to Firebase Realtime Database successfully!")
     except Exception as e:
         logger.error("❌ Failed to initialize Firebase: %s", e)
+        raise RuntimeError(f"❌ خطأ حرج: فشل الاتصال بقاعدة بيانات فايربيس! تحقق من المفاتيح: {e}") from e
+else:
+    logger.error("❌ CRITICAL ERROR: Firebase environment variables are missing!")
+    raise RuntimeError("❌ خطأ حرج: لم يتم ربط قاعدة بيانات فايربيس! يرجى إضافة FIREBASE_CONFIG_JSON و FIREBASE_DB_URL في منصة Railway لمنع تصفير البيانات.")
 
 # =====================================================
 # Keep Alive Web Server for Railway
@@ -294,29 +298,22 @@ def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, An
 def load_db_sync() -> Dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    if FB_JSON and FB_URL:
-        try:
-            ref = firebase_db.reference('/')
-            loaded = ref.get()
-            if loaded:
-                logger.info("✅ Data loaded from Firebase Realtime Database root.")
+    try:
+        ref = firebase_db.reference('/')
+        loaded = ref.get()
+        if loaded is not None:
+            logger.info("✅ Data loaded from Firebase Realtime Database root.")
+            if isinstance(loaded, dict):
                 loaded.pop("downloads", None)
                 return merge_defaults(DEFAULT_DB, loaded)
-        except Exception as error:
-            logger.error("Could not read Firebase DB: %s", error)
-
-    if not DB_FILE.exists():
-        return json.loads(json.dumps(DEFAULT_DB))
-
-    try:
-        with DB_FILE.open("r", encoding="utf-8") as file:
-            loaded = json.load(file)
-        loaded.pop("downloads", None)
+            else:
+                logger.error("Firebase root data is not a dictionary.")
+        else:
+            logger.info("ℹ️ Firebase is empty. Initializing with default structure.")
+            return json.loads(json.dumps(DEFAULT_DB))
     except Exception as error:
-        logger.error("Could not read DB file: %s", error)
-        return json.loads(json.dumps(DEFAULT_DB))
-
-    return merge_defaults(DEFAULT_DB, loaded)
+        logger.error("❌ CRITICAL: Could not read Firebase DB: %s", error)
+        raise RuntimeError(f"❌ خطأ حرج: فشل سحب البيانات من فايربيس: {error}") from error
 
 def save_db_sync() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
