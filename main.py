@@ -37,6 +37,9 @@ from telegram.ext import (
     filters,
 )
 
+import firebase_admin
+from firebase_admin import credentials, db as firebase_db
+
 # =====================================================
 # PlayZone Telegram Bot
 # Ultra Professional Version + Advanced Features
@@ -76,6 +79,20 @@ except ValueError as exc:
 
 def is_admin(user_id: int) -> bool:
     return int(user_id) == int(ADMIN_CHAT_ID)
+
+# =====================================================
+# Firebase Initialization
+# =====================================================
+FB_JSON = os.getenv("FIREBASE_CONFIG_JSON", "").strip()
+FB_URL = os.getenv("FIREBASE_DB_URL", "").strip()
+
+if FB_JSON and FB_URL:
+    try:
+        cred = credentials.Certificate(json.loads(FB_JSON))
+        firebase_admin.initialize_app(cred, {"databaseURL": FB_URL})
+        logger.info("✅ Connected to Firebase Realtime Database successfully!")
+    except Exception as e:
+        logger.error("❌ Failed to initialize Firebase: %s", e)
 
 # =====================================================
 # Keep Alive Web Server for Railway
@@ -203,7 +220,6 @@ async def check_cart_abandonment(context: ContextTypes.DEFAULT_TYPE) -> None:
             pass
 
 async def assistant_verify_receipt() -> str:
-    # دالة وهمية للتحقق المساعد (OCR). يمكن ربطها بمكتبة pytesseract لاحقاً.
     return "🔍 <b>فحص آلي مساعد:</b> يرجى مراجعة ظهور مبلغ التحويل بوضوح."
 
 async def run_scheduled_broadcast(context: ContextTypes.DEFAULT_TYPE, text: str, delay_seconds: int):
@@ -278,12 +294,24 @@ def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, An
 def load_db_sync() -> Dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    if FB_JSON and FB_URL:
+        try:
+            ref = firebase_db.reference('/')
+            loaded = ref.get()
+            if loaded:
+                logger.info("✅ Data loaded from Firebase Realtime Database root.")
+                loaded.pop("downloads", None)
+                return merge_defaults(DEFAULT_DB, loaded)
+        except Exception as error:
+            logger.error("Could not read Firebase DB: %s", error)
+
     if not DB_FILE.exists():
         return json.loads(json.dumps(DEFAULT_DB))
 
     try:
         with DB_FILE.open("r", encoding="utf-8") as file:
             loaded = json.load(file)
+        loaded.pop("downloads", None)
     except Exception as error:
         logger.error("Could not read DB file: %s", error)
         return json.loads(json.dumps(DEFAULT_DB))
@@ -294,6 +322,13 @@ def save_db_sync() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     temp_file = DB_FILE.with_suffix(".tmp")
     backup_file = DB_FILE.with_suffix(".bak")
+
+    if FB_JSON and FB_URL:
+        try:
+            ref = firebase_db.reference('/')
+            ref.update(db)
+        except Exception as error:
+            logger.error("Could not write to Firebase DB: %s", error)
 
     try:
         if DB_FILE.exists():
@@ -916,7 +951,6 @@ async def edit_query_message(query, text: str, reply_markup: InlineKeyboardMarku
     try:
         await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=reply_markup, disable_web_page_preview=True)
     except BadRequest as error:
-        # Message is not modified / old photo caption / etc.
         if "Message is not modified" in str(error):
             return
         await query.message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup, disable_web_page_preview=True)
@@ -1060,7 +1094,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     session = get_session(user.id)
 
-    # معالجة الرد المخصص عند الرفض للأدمن
     if is_admin(user.id) and session.get("awaiting_custom_reject"):
         order_id = session.pop("awaiting_custom_reject")
         custom_text = update.message.text or "عذراً، هناك مشكلة في إيصال الدفع المرفق."
@@ -1069,7 +1102,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ تم الرفض وإرسال السبب المخصص للمستخدم للطلب {order_id}.", reply_markup=admin_panel_keyboard())
         return
 
-    # معالجة إدخال نص التنبيه المجدول للأدمن
     if is_admin(user.id) and session.get("awaiting_broadcast"):
         text = update.message.text or ""
         await upsert_session(user, {"awaiting_broadcast_time": text}, push_screen="broadcast_time")
@@ -1146,7 +1178,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_id = update.message.photo[-1].file_id
     order_id = await next_order_id()
     
-    # التحقق المساعد للإيصالات (OCR)
     verification_note = await assistant_verify_receipt()
 
     order = {
@@ -1259,8 +1290,7 @@ async def handle_nav_callback(query, context: ContextTypes.DEFAULT_TYPE, data: s
     if len(history) >= 2:
         previous = history[-2]
 
-    # Remove current screen
-    def mutate(data_obj):
+    def mutate_obj(data_obj):
         s = data_obj.setdefault("sessions", {}).setdefault(user_key(query.from_user.id), {})
         hist = s.get("history", []) or []
         if len(hist) > 1:
@@ -1268,14 +1298,13 @@ async def handle_nav_callback(query, context: ContextTypes.DEFAULT_TYPE, data: s
         s["history"] = hist
         s["updated_ts"] = utc_now_ts()
 
-    await update_db(mutate)
+    await update_db(mutate_obj)
     await show_screen(query, previous, push=False)
 
 async def handle_menu_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
     screen = data.split(":", 1)[1]
 
     if screen == "home":
-        # الرئيسية تبدأ مسارًا جديدًا حتى لا يرجع المستخدم إلى صفحات قديمة جدًا.
         def reset_history(data_obj):
             session = data_obj.setdefault("sessions", {}).setdefault(user_key(query.from_user.id), {})
             session["history"] = ["home"]
@@ -1354,7 +1383,6 @@ async def show_screen(query, screen: str, push: bool = True):
     await show_home_from_query(query)
 
 async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
-    # أزرار خاصة برسالة الإيصال حتى لا تعتمد على history ولا ترجع للرئيسية خطأ.
     parts = data.split(":", 2)
     action = parts[1] if len(parts) > 1 else ""
     order_id = parts[2] if len(parts) > 2 else ""
@@ -1364,7 +1392,6 @@ async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, dat
         await query.answer("لم أجد بيانات هذا الطلب", show_alert=True)
         return
 
-    # لا نسمح لشخص آخر بفتح تفاصيل طلب غيره من زر قديم.
     if str(order.get("user_id")) != str(query.from_user.id) and not is_admin(query.from_user.id):
         await query.answer("هذا الطلب لا يخص حسابك", show_alert=True)
         return
@@ -1384,7 +1411,6 @@ async def handle_receipt_callback(query, context: ContextTypes.DEFAULT_TYPE, dat
     await query.answer("خيار غير معروف", show_alert=True)
 
 async def handle_download_callback(query, context: ContextTypes.DEFAULT_TYPE, data: str):
-    # أزرار خاصة برسالة التحميل فقط. لا تعتمد على history حتى لا يضيع زر التحميل.
     parts = data.split(":", 2)
     action = parts[1] if len(parts) > 1 else ""
     order_id = parts[2] if len(parts) > 2 else ""
@@ -1548,9 +1574,6 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await query.answer("تم حظر المستخدم ولن يتمكن من استخدام البوت بعد الآن.", show_alert=True)
         return
 
-    # === الكود الجديد لإدارة وفك الحظر ===
-
-    # 1. عرض قائمة المحظورين
     if action == "banned_list":
         banned = db.get("banned_users", [])
         if not banned:
@@ -1565,7 +1588,6 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await edit_query_message(query, "🚫 <b>قائمة المحظورين</b>\n\nاضغط على المعرف لفك الحظر عنه فوراً:", kb(rows))
         return
 
-    # 2. تنفيذ عملية فك الحظر
     if action == "unban":
         target_uid = int(parts[2])
         def mutate_unban(data):
@@ -1575,7 +1597,6 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
         await update_db(mutate_unban)
         await query.answer("تم فك الحظر عن المستخدم بنجاح.", show_alert=True)
         
-        # إعادة تحديث القائمة فوراً
         banned = db.get("banned_users", [])
         if not banned:
             await edit_query_message(query, "👑 <b>لوحة الأدمن</b>\n\nاختر الإجراء المطلوب:", admin_panel_keyboard())
@@ -1587,9 +1608,6 @@ async def handle_admin_callback(query, context: ContextTypes.DEFAULT_TYPE, data:
             await edit_query_message(query, "🚫 <b>قائمة المحظورين</b>\n\nاضغط على المعرف لفك الحظر عنه فوراً:", kb(rows))
         return
 
-    # ==================================
-
-    # Order actions
     order_id = parts[2] if len(parts) > 2 else ""
     if not order_id:
         await query.answer("طلب غير معروف", show_alert=True)
@@ -1694,7 +1712,7 @@ async def export_excel_to_admin(query, context: ContextTypes.DEFAULT_TYPE) -> No
             o.get("created_at_text", "")
         ])
         
-    bio = io.BytesIO(output.getvalue().encode('utf-8-sig')) # دعم اللغة العربية في Excel
+    bio = io.BytesIO(output.getvalue().encode('utf-8-sig'))
     bio.name = f"playzone_sales_{int(time.time())}.csv"
     
     await context.bot.send_document(
@@ -1763,7 +1781,6 @@ async def reject_order(update_or_query, context: ContextTypes.DEFAULT_TYPE, orde
     order["rejection_reason"] = reason_text
 
     try:
-        # التعامل سواء كان المصدر زر أو رسالة نصية (في حالة الرد المخصص)
         if hasattr(update_or_query, "edit_message_caption"):
             await update_or_query.edit_message_caption(
                 order_caption(order) + "\n\n🚫 تم الرفض في " + now_text(),
@@ -1959,5 +1976,3 @@ if __name__ == "__main__":
 
     except Exception as error:
         logger.exception("General error: %s", error)
-
-# redeploy trigger ultra professional + Advanced Control + Unban System
