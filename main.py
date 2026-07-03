@@ -298,22 +298,37 @@ def merge_defaults(base: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, An
 def load_db_sync() -> Dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    try:
-        ref = firebase_db.reference('/')
-        loaded = ref.get()
-        if loaded is not None:
-            logger.info("✅ Data loaded from Firebase Realtime Database root.")
-            if isinstance(loaded, dict):
-                loaded.pop("downloads", None)
-                return merge_defaults(DEFAULT_DB, loaded)
+    if FB_JSON and FB_URL:
+        try:
+            ref = firebase_db.reference('/')
+            loaded = ref.get()
+            if loaded is not None:
+                logger.info("✅ Data loaded from Firebase Realtime Database root.")
+                if isinstance(loaded, dict):
+                    loaded.pop("downloads", None)
+                    return merge_defaults(DEFAULT_DB, loaded)
+                else:
+                    logger.error("Firebase root data is not a dictionary.")
             else:
-                logger.error("Firebase root data is not a dictionary.")
-        else:
-            logger.info("ℹ️ Firebase is empty. Initializing with default structure.")
-            return json.loads(json.dumps(DEFAULT_DB))
+                logger.info("ℹ️ Firebase is empty. Initializing with default structure.")
+                ref.update(DEFAULT_DB)
+                return json.loads(json.dumps(DEFAULT_DB))
+        except Exception as error:
+            logger.error("❌ CRITICAL: Could not read Firebase DB: %s", error)
+            raise RuntimeError(f"❌ خطأ حرج: فشل سحب البيانات من فايربيس: {error}") from error
+
+    if not DB_FILE.exists():
+        return json.loads(json.dumps(DEFAULT_DB))
+
+    try:
+        with DB_FILE.open("r", encoding="utf-8") as file:
+            loaded = json.load(file)
+        if isinstance(loaded, dict):
+            loaded.pop("downloads", None)
+        return merge_defaults(DEFAULT_DB, loaded)
     except Exception as error:
-        logger.error("❌ CRITICAL: Could not read Firebase DB: %s", error)
-        raise RuntimeError(f"❌ خطأ حرج: فشل سحب البيانات من فايربيس: {error}") from error
+        logger.error("Could not read DB file: %s", error)
+        return json.loads(json.dumps(DEFAULT_DB))
 
 def save_db_sync() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
