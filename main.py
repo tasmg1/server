@@ -18,8 +18,7 @@ class FormDataPayload(BaseModel):
 playwright_instance = None
 browser_instance = None
 
-# خوارزمية حماية السيرفر: معالجة 15 طلب PDF في نفس اللحظة كحد أقصى
-# لضمان تحمل ضغط آلاف المستخدمين دون انهيار الذاكرة العشوائية (RAM)
+# خوارزمية المرور: لمعالجة آلاف الطلبات في وقت واحد دون انهيار السيرفر
 render_semaphore = asyncio.Semaphore(15)
 
 @app.on_event("startup")
@@ -71,8 +70,10 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
         )
         page = await context.new_page()
         try:
+            # ننتظر تحميل الخطوط العربية تماماً
             await page.set_content(rendered_html, wait_until="networkidle")
-            await page.emulate_media(media="print")
+            # السر هنا: نجبر السيرفر على استخراج PDF يطابق تصميم الشاشة بالضبط
+            await page.emulate_media(media="screen")
             
             pdf_bytes = await page.pdf(
                 format="A4",
