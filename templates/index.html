@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
     
-    <!-- مكتبات التصدير كما تفضلها -->
+    <!-- مكتبات التصدير -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -40,7 +40,6 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* حاوية مرنة للتوسيط ومنع المساحات الفارغة */
         .main-wrapper {
             min-width: 100%;
             width: max-content;
@@ -185,7 +184,8 @@
             border: var(--border-thickness) solid #000000 !important;
             padding: 0 !important;
             vertical-align: middle;
-            position: relative; /* لتثبيت الحقول داخله */
+            position: relative;
+            background-color: #ffffff;
         }
 
         .label-col { width: var(--label-width); text-align: center; background-color: #ffffff; }
@@ -197,12 +197,12 @@
         .rotated-label {
             position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;
             gap: 1.5px; transform: rotate(90deg); font-size: var(--label-font-size); font-weight: bold; color: #000;
-            line-height: 1.1; text-align: center; white-space: nowrap;
+            line-height: 1.1; text-align: center; white-space: nowrap; transform-origin: center center;
         }
 
-        .input-col { width: calc(100% - var(--label-width)); position: relative; }
+        .input-col { width: calc(100% - var(--label-width)); position: relative; height: 100%; }
 
-        /* حماية الحقول من التمدد وتأثيرات الهواتف الافتراضية */
+        /* حقول الإدخال */
         .input-col input,
         .input-col textarea {
             position: absolute;
@@ -210,11 +210,11 @@
             width: 100%; height: 100%;
             border: none !important;
             outline: none !important;
-            padding: 0 6px;
+            padding: 0 4px;
             font-size: var(--input-font-size);
             font-weight: bold;
             background: transparent;
-            font-family: inherit;
+            font-family: Arial, Tahoma, "Segoe UI", sans-serif;
             color: #000000;
             text-align: center;
             resize: none;
@@ -223,32 +223,62 @@
             -moz-appearance: none;
             appearance: none;
             border-radius: 0;
-            /* التأكد من بقاء النص داخل الحدود */
-            overflow: hidden; 
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .input-col input:focus,
         .input-col textarea:focus {
-            background-color: rgba(0, 123, 255, 0.04);
+            background-color: rgba(0, 123, 255, 0.05);
         }
 
-        .input-col input { display: block; line-height: 1.5; }
-        .input-col textarea { padding-top: 6px; line-height: 1.2; white-space: pre-wrap; }
+        .input-col input { 
+            line-height: 1; 
+        }
 
-        @page { size: 210mm 297mm; margin: 0 !important; }
+        .input-col textarea { 
+            padding-top: 4px; 
+            line-height: 1.2; 
+            white-space: pre-wrap;
+            overflow: hidden;
+        }
 
-        /* طباعة A4 دقيقة ورسمية */
+        /* قواعد الطباعة الرسمية A4 */
+        @page { 
+            size: 210mm 297mm; 
+            margin: 0 !important; 
+        }
+
         @media print {
             html, body {
-                width: 210mm !important; height: 297mm !important; margin: 0 !important; padding: 0 !important;
-                background: #ffffff !important; overflow: visible !important;
+                width: 210mm !important; 
+                height: 297mm !important; 
+                margin: 0 !important; 
+                padding: 0 !important;
+                background: #ffffff !important; 
+                overflow: hidden !important;
             }
             .controls { display: none !important; }
-            .main-wrapper { padding: 0 !important; margin: 0 !important; display: block !important; width: 210mm !important; }
+            .main-wrapper { 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                display: block !important; 
+                width: 210mm !important; 
+                height: 297mm !important;
+            }
             .a4-page {
-                margin: 0 !important; width: 210mm !important; height: 297mm !important;
-                box-shadow: none !important; border: none !important;
-                page-break-before: avoid !important; page-break-after: avoid !important; page-break-inside: avoid !important;
+                margin: 0 !important; 
+                width: 210mm !important; 
+                height: 297mm !important;
+                min-width: 210mm !important;
+                min-height: 297mm !important;
+                box-shadow: none !important; 
+                border: none !important;
+                page-break-before: avoid !important; 
+                page-break-after: avoid !important; 
+                page-break-inside: avoid !important;
             }
             .input-col input:focus, .input-col textarea:focus { background-color: transparent !important; }
         }
@@ -339,13 +369,12 @@
                 }
             });
 
-            // طباعة مع تأخير ذكي لتفريغ الحقول (blur) من التركيز
             const printBtn = document.getElementById('printBtn');
             printBtn.onclick = function(e) {
                 e.preventDefault();
                 this.blur();
                 if (document.activeElement) document.activeElement.blur();
-                setTimeout(() => window.print(), 300);
+                setTimeout(() => window.print(), 200);
             };
 
             const pdfBtn = document.getElementById('pdfBtn');
@@ -434,51 +463,59 @@
             if (document.activeElement) document.activeElement.blur();
 
             const printableElement = document.getElementById('printableArea');
-            const fields = printableElement.querySelectorAll('.input-col input, .input-col textarea');
-            const tempDivs = [];
 
             try {
-                fields.forEach(field => {
-                    const val = field.value || '';
-                    const isTextarea = field.tagName.toLowerCase() === 'textarea';
-                    const tempDiv = document.createElement('div');
-                    
-                    tempDiv.innerText = val;
-                    tempDiv.style.width = '100%';
-                    tempDiv.style.height = '100%';
-                    tempDiv.style.display = 'flex';
-                    tempDiv.style.alignItems = 'center';
-                    tempDiv.style.justifyContent = 'center';
-                    tempDiv.style.fontSize = currentInputFont + 'px';
-                    tempDiv.style.fontWeight = 'bold';
-                    tempDiv.style.color = '#000000';
-                    tempDiv.style.textAlign = 'center';
-                    tempDiv.style.fontFamily = 'Arial, Tahoma, sans-serif';
-                    
-                    if (isTextarea) {
-                        tempDiv.style.whiteSpace = 'pre-wrap';
-                        tempDiv.style.lineHeight = '1.2';
-                        tempDiv.style.padding = '2px 4px';
-                        tempDiv.style.wordBreak = 'break-word';
-                    } else {
-                        tempDiv.style.whiteSpace = 'nowrap';
-                        tempDiv.style.overflow = 'hidden';
-                    }
-                    
-                    field.style.display = 'none';
-                    field.parentNode.appendChild(tempDiv);
-                    tempDivs.push(tempDiv);
-                });
-
                 const canvas = await html2canvas(printableElement, {
-                    scale: 2,
+                    scale: 3,
                     useCORS: true,
                     allowTaint: true,
                     logging: false,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    onclone: (clonedDoc) => {
+                        // استبدال حقول الإدخال في النسخة المستنسخة دون التأثير على الصفحة الحية
+                        const clonedPage = clonedDoc.getElementById('printableArea');
+                        const inputs = clonedPage.querySelectorAll('.input-col input, .input-col textarea');
+                        
+                        inputs.forEach(input => {
+                            const parent = input.parentNode;
+                            const textDiv = clonedDoc.createElement('div');
+                            const isTextarea = input.tagName.toLowerCase() === 'textarea';
+                            
+                            textDiv.innerText = input.value || '';
+                            textDiv.style.position = 'absolute';
+                            textDiv.style.top = '0';
+                            textDiv.style.left = '0';
+                            textDiv.style.right = '0';
+                            textDiv.style.bottom = '0';
+                            textDiv.style.width = '100%';
+                            textDiv.style.height = '100%';
+                            textDiv.style.display = 'flex';
+                            textDiv.style.alignItems = 'center';
+                            textDiv.style.justifyContent = 'center';
+                            textDiv.style.textAlign = 'center';
+                            textDiv.style.fontFamily = 'Arial, Tahoma, sans-serif';
+                            textDiv.style.fontSize = currentInputFont + 'px';
+                            textDiv.style.fontWeight = 'bold';
+                            textDiv.style.color = '#000000';
+                            textDiv.style.boxSizing = 'border-box';
+                            
+                            if (isTextarea) {
+                                textDiv.style.whiteSpace = 'pre-wrap';
+                                textDiv.style.lineHeight = '1.2';
+                                textDiv.style.padding = '2px 4px';
+                                textDiv.style.wordBreak = 'break-word';
+                            } else {
+                                textDiv.style.whiteSpace = 'nowrap';
+                                textDiv.style.overflow = 'hidden';
+                                textDiv.style.padding = '0 4px';
+                            }
+
+                            parent.replaceChild(textDiv, input);
+                        });
+                    }
                 });
 
-                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF({
                     orientation: 'portrait',
@@ -488,32 +525,12 @@
                 });
 
                 pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-                
-                const fileName = 'نموذج_رقم_1.pdf';
-                const pdfBlob = pdf.output('blob');
-                
-                // إنشاء ملف وتنزيله بشكل مباشر وإجباري (لمنع فتح النافذة المزعجة في بعض الهواتف)
-                const downloadBlob = new Blob([pdfBlob], { type: 'application/pdf' });
-                const blobUrl = URL.createObjectURL(downloadBlob);
-                const downloadLink = document.createElement('a');
-                downloadLink.href = blobUrl;
-                downloadLink.download = fileName;
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-
-                setTimeout(() => {
-                    document.body.removeChild(downloadLink);
-                    URL.revokeObjectURL(blobUrl);
-                }, 2000);
+                pdf.save('نموذج_رقم_1.pdf');
 
             } catch (err) {
-                if (err.name !== 'AbortError') {
-                    console.error(err);
-                    alert('حدث خطأ أثناء تصدير الملف');
-                }
+                console.error(err);
+                alert('حدث خطأ أثناء تصدير الملف');
             } finally {
-                fields.forEach(field => field.style.display = '');
-                tempDivs.forEach(div => div.remove());
                 btn.innerText = originalText;
                 btn.disabled = false;
                 isExporting = false;
