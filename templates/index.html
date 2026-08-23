@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
+    
+    <!-- تحميل خط عربي رسمي لضمان عدم تشوه النص عند استخراجه من سيرفرات لينكس -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -21,7 +24,8 @@
 
         * {
             box-sizing: border-box;
-            font-family: Arial, Tahoma, "Segoe UI", sans-serif;
+            /* توحيد الخط المعتمد */
+            font-family: 'Cairo', Arial, Tahoma, sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             -webkit-tap-highlight-color: transparent;
@@ -174,14 +178,11 @@
             table-layout: fixed;
         }
 
-        table.unified-table tr { overflow: hidden; }
-
         table.unified-table td {
             border: var(--border-thickness) solid #000000 !important;
             padding: 0 !important;
             vertical-align: middle;
-            position: relative;
-            overflow: hidden;
+            position: relative; /* ضروري لعمل الكبسولة الداخلية */
         }
 
         .label-col { width: var(--label-width); text-align: center; background-color: #ffffff; }
@@ -196,13 +197,21 @@
             line-height: 1.1; text-align: center; white-space: nowrap;
         }
 
-        .input-col { width: calc(100% - var(--label-width)); }
+        .input-col { width: calc(100% - var(--label-width)); position: relative; }
 
-        .input-col input,
-        .input-col textarea,
-        .pdf-text-val {
+        /* الكبسولة المقفلة: تمنع الجدول من التمدد حتى لو كتب المستخدم 100 سطر */
+        .input-wrapper {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-wrapper input,
+        .input-wrapper textarea,
+        .input-wrapper .pdf-text-val {
             width: 100%; height: 100%;
             border: none !important;
             outline: none !important;
@@ -213,7 +222,7 @@
             font-family: inherit; 
             color: #000000;
             text-align: center; 
-            overflow: hidden; 
+            resize: none; 
             margin: 0;
             -webkit-appearance: none;
             -moz-appearance: none;
@@ -221,16 +230,15 @@
             border-radius: 0;
         }
 
-        .input-col input:focus,
-        .input-col textarea:focus {
+        .input-wrapper input:focus,
+        .input-wrapper textarea:focus {
             background-color: rgba(0, 123, 255, 0.04);
         }
 
-        .input-col input { display: block; line-height: 1.5; }
-        .input-col textarea { padding-top: 6px; line-height: 1.2; white-space: pre-wrap; resize: none; }
+        .input-wrapper input { line-height: 1.5; }
+        .input-wrapper textarea { padding-top: 6px; line-height: 1.2; white-space: pre-wrap; }
 
-        .pdf-text-val { display: flex; justify-content: center; padding: 0 6px; }
-        .pdf-text-val.single-line { align-items: center; white-space: nowrap; }
+        .pdf-text-val { display: flex; justify-content: center; align-items: center; }
         .pdf-text-val.multi-line { align-items: flex-start; padding-top: 6px; white-space: pre-wrap; line-height: 1.2; }
 
         @page {
@@ -240,42 +248,22 @@
 
         @media print {
             html, body {
-                width: 210mm !important; 
-                height: 297mm !important; 
-                margin: 0 !important; 
-                padding: 0 !important;
-                background: #ffffff !important; 
-                overflow: visible !important; 
+                width: 210mm !important; height: 297mm !important; margin: 0 !important; padding: 0 !important;
+                background: #ffffff !important; overflow: visible !important; 
             }
             .controls { display: none !important; }
-            .main-wrapper { 
-                padding: 0 !important; 
-                margin: 0 !important; 
-                display: block !important; 
-                width: 210mm !important; 
-            }
+            .main-wrapper { padding: 0 !important; margin: 0 !important; display: block !important; width: 210mm !important; }
             .a4-page {
-                margin: 0 !important; 
-                width: 210mm !important; 
-                height: 297mm !important;
-                min-width: 210mm !important;
-                min-height: 297mm !important;
-                max-width: 210mm !important;
-                max-height: 297mm !important;
-                box-shadow: none !important; 
-                border: none !important;
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
+                margin: 0 !important; width: 210mm !important; height: 297mm !important;
+                box-shadow: none !important; border: none !important;
             }
-            .input-col input:focus, .input-col textarea:focus { background-color: transparent !important; }
+            .input-wrapper input:focus, .input-wrapper textarea:focus { background-color: transparent !important; }
         }
     </style>
 </head>
 <body>
 
     <div class="main-wrapper">
-        
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
@@ -301,6 +289,7 @@
                 <table class="unified-table">
                     <tbody>
                         {% macro render_row(h, title1, title2, key, is_area=False) %}
+                        <!-- الارتفاع هنا ثابت لا يمكن أن يتغير بفضل الكبسولة -->
                         <tr style="height: {{ h }}mm;">
                             <td class="label-col">
                                 <div class="rotated-label-box">
@@ -311,17 +300,20 @@
                                 </div>
                             </td>
                             <td class="input-col">
-                                {% if is_pdf %}
-                                    <div class="pdf-text-val {{ 'multi-line' if is_area else 'single-line' }}">
-                                        {{ form_data.get(key, '') }}
-                                    </div>
-                                {% else %}
-                                    {% if is_area %}
-                                        <textarea data-key="{{ key }}" spellcheck="false" autocomplete="off" autocorrect="off">{{ form_data.get(key, '') }}</textarea>
+                                <div class="input-wrapper">
+                                    {% if is_pdf %}
+                                        <div class="pdf-text-val {{ 'multi-line' if is_area else 'single-line' }}">
+                                            {{ form_data.get(key, '') }}
+                                        </div>
                                     {% else %}
-                                        <input type="text" data-key="{{ key }}" value="{{ form_data.get(key, '') }}" spellcheck="false" autocomplete="off" autocorrect="off">
+                                        {% if is_area %}
+                                            <!-- منع التصحيح التلقائي المزعج للهواتف -->
+                                            <textarea data-key="{{ key }}" spellcheck="false" autocomplete="off" autocorrect="off">{{ form_data.get(key, '') }}</textarea>
+                                        {% else %}
+                                            <input type="text" data-key="{{ key }}" value="{{ form_data.get(key, '') }}" spellcheck="false" autocomplete="off" autocorrect="off">
+                                        {% endif %}
                                     {% endif %}
-                                {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endmacro %}
@@ -447,6 +439,7 @@
             }
         }
 
+        // التصدير الإجباري بصيغة ملف PDF فقط (يعمل 100% على كافة الهواتف)
         async function exportPDFBackend() {
             if (isExporting) return;
             isExporting = true;
@@ -478,24 +471,19 @@
                 const pdfBlob = await response.blob();
                 const fileName = 'نموذج_رقم_1.pdf';
 
-                if (navigator.canShare && navigator.canShare({ files: [new File([pdfBlob], fileName, { type: 'application/pdf' })] })) {
-                    await navigator.share({
-                        files: [new File([pdfBlob], fileName, { type: 'application/pdf' })]
-                    });
-                } else {
-                    const downloadBlob = new Blob([pdfBlob], { type: 'application/octet-stream' });
-                    const blobUrl = URL.createObjectURL(downloadBlob);
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = blobUrl;
-                    downloadLink.download = fileName;
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
+                // إجبار المتصفح على فتح نافذة حفظ الملف بامتداد .pdf
+                const downloadBlob = new Blob([pdfBlob], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(downloadBlob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = blobUrl;
+                downloadLink.download = fileName;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
 
-                    setTimeout(() => {
-                        document.body.removeChild(downloadLink);
-                        URL.revokeObjectURL(blobUrl);
-                    }, 2000);
-                }
+                setTimeout(() => {
+                    document.body.removeChild(downloadLink);
+                    URL.revokeObjectURL(blobUrl);
+                }, 2500);
 
             } catch (err) {
                 console.error(err);
