@@ -2,13 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+    <meta name="viewport" content="width=794, user-scalable=yes">
     <title>نموذج رقم 1</title>
-
-    <!-- تضمين خط Noto Naskh Arabic الرسمي لضمان تطابق الخطوط في السيرفر والمتصفح -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         :root {
@@ -19,94 +16,78 @@
             --title-right: -3mm;
             --label-width: 17%;
             --label-font-size: 10px;
-            --input-font-size: {{ font_size }}px;
+            --input-font-size: 16px;
             --title-font-size: 13px;
             --border-thickness: 2px;
         }
 
         * {
             box-sizing: border-box;
-            font-family: 'Noto Naskh Arabic', Arial, Tahoma, sans-serif;
+            font-family: Arial, Tahoma, "Segoe UI", sans-serif;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             -webkit-tap-highlight-color: transparent;
         }
 
         html, body {
-            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
-            margin: 0;
-            padding: {{ '0' if is_pdf else '10px 0 40px 0' }};
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            width: 100%;
-            overflow-x: auto;
-        }
-
-        .page-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 210mm;
-            max-width: 96vw;
+            background-color: #525659;
             margin: 0 auto;
+            padding: 0;
+            width: 794px;
         }
 
-        /* شريط التحكم */
+        .main-container {
+            width: 794px;
+            margin: 0 auto;
+            padding: 0;
+            background-color: #ffffff;
+        }
+
         .controls {
-            margin-bottom: 10px;
-            display: {{ 'none' if is_pdf else 'flex' }};
+            width: 794px;
+            margin: 0;
+            display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
+            justify-content: space-between;
+            gap: 6px;
             background: #ffffff;
-            padding: 8px 12px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-            width: 100%;
-            flex-wrap: wrap;
+            padding: 6px 10px;
+            border-bottom: 2px solid #525659;
         }
 
         .btn-action {
             color: #ffffff;
             border: none;
             padding: 7px 14px;
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: bold;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
             outline: none;
-            transition: transform 0.1s ease, opacity 0.1s ease;
+            transition: opacity 0.15s ease;
+            white-space: nowrap;
         }
 
-        .btn-action:active, .btn-step:active {
-            transform: scale(0.95);
-            opacity: 0.8;
+        .btn-action:active {
+            opacity: 0.75;
         }
 
         .btn-print { background-color: #007bff; }
         .btn-pdf { background-color: #28a745; }
         .btn-clear { background-color: #dc3545; }
 
-        @media (hover: hover) and (pointer: fine) {
-            .btn-print:hover { background-color: #0056b3; }
-            .btn-pdf:hover { background-color: #218838; }
-            .btn-clear:hover { background-color: #c82333; }
-            .btn-step:hover { background-color: #e2e6ea; }
-        }
-
         .control-group {
             display: flex;
             align-items: center;
             gap: 5px;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: bold;
             color: #333333;
             background: #f8f9fa;
             padding: 3px 6px;
-            border-radius: 6px;
+            border-radius: 4px;
             border: 1px solid #ced4da;
+            white-space: nowrap;
         }
 
         .btn-step {
@@ -117,37 +98,29 @@
             height: 26px;
             font-size: 14px;
             font-weight: bold;
-            border-radius: 4px;
+            border-radius: 3px;
             cursor: pointer;
-            outline: none;
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
         .val-display {
-            min-width: 40px;
+            min-width: 36px;
             text-align: center;
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 800;
             color: #007bff;
         }
 
-        /* ورقة A4 */
         .a4-page {
-            width: 210mm;
-            height: 297mm;
-            min-width: 210mm;
-            min-height: 297mm;
-            max-height: 297mm;
+            width: 794px;
+            height: 1123px;
             background: #ffffff;
             position: relative;
-            box-shadow: {{ 'none' if is_pdf else '0 0 15px rgba(0,0,0,0.4)' }};
             margin: 0;
+            padding: 0;
             overflow: hidden;
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
-            flex-shrink: 0;
         }
 
         .side-title-wrapper {
@@ -194,7 +167,6 @@
             right: var(--table-right);
             width: var(--table-width);
             flex-shrink: 0;
-            page-break-inside: avoid;
         }
 
         table.unified-table {
@@ -203,12 +175,6 @@
             border-spacing: 0 !important;
             border: var(--border-thickness) solid #000000 !important;
             table-layout: fixed;
-            page-break-inside: avoid;
-        }
-
-        table.unified-table tr {
-            page-break-inside: avoid !important;
-            page-break-after: avoid !important;
         }
 
         table.unified-table td {
@@ -263,8 +229,7 @@
         }
 
         .input-col input,
-        .input-col textarea,
-        .pdf-text-val {
+        .input-col textarea {
             width: 100%;
             height: 100%;
             border: none !important;
@@ -276,9 +241,7 @@
             font-family: inherit;
             color: #000000;
             text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: block;
         }
 
         .input-col textarea {
@@ -287,7 +250,6 @@
             line-height: 1.2;
             white-space: pre-wrap;
             overflow: hidden;
-            display: block;
         }
 
         @page {
@@ -299,33 +261,44 @@
             html, body {
                 width: 210mm !important;
                 height: 297mm !important;
+                min-height: 297mm !important;
+                max-height: 297mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 background: #ffffff !important;
                 overflow: hidden !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
 
             .controls {
                 display: none !important;
             }
 
+            .main-container {
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+
             .a4-page {
-                box-shadow: none !important;
                 margin: 0 !important;
                 width: 210mm !important;
                 height: 297mm !important;
+                min-height: 297mm !important;
                 max-height: 297mm !important;
+                box-shadow: none !important;
+                border: none !important;
+                position: relative !important;
+                overflow: hidden !important;
                 page-break-before: avoid !important;
                 page-break-after: avoid !important;
                 page-break-inside: avoid !important;
-                position: relative !important;
-                overflow: hidden !important;
-            }
-
-            .side-title-wrapper {
-                position: absolute !important;
-                top: var(--title-top) !important;
-                right: var(--title-right) !important;
+                break-before: avoid !important;
+                break-after: avoid !important;
+                break-inside: avoid !important;
             }
 
             .table-container {
@@ -335,49 +308,42 @@
                 width: var(--table-width) !important;
             }
 
-            table.unified-table {
-                border: var(--border-thickness) solid #000000 !important;
-                border-collapse: collapse !important;
-                page-break-inside: avoid !important;
+            .side-title-wrapper {
+                position: absolute !important;
+                top: var(--title-top) !important;
+                right: var(--title-right) !important;
             }
 
-            table.unified-table td {
-                border: var(--border-thickness) solid #000000 !important;
+            .input-col input,
+            .input-col textarea {
+                border: none !important;
+                outline: none !important;
+                background: transparent !important;
                 color: #000000 !important;
-                page-break-inside: avoid !important;
-            }
-
-            .rotated-label {
-                transform: rotate(90deg) !important;
-                -webkit-transform: rotate(90deg) !important;
-                font-size: var(--label-font-size) !important;
-            }
-
-            .vertical-title {
-                transform: rotate(90deg) !important;
-                -webkit-transform: rotate(90deg) !important;
+                font-size: var(--input-font-size) !important;
+                box-shadow: none !important;
+                -webkit-appearance: none !important;
+                appearance: none !important;
             }
         }
     </style>
 </head>
 <body>
 
-    <div class="page-wrapper">
-        <!-- شريط التحكم -->
+    <div class="main-container">
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
             <button type="button" class="btn-action btn-clear" id="clearBtn">مسح الحقول</button>
             
             <div class="control-group">
-                <span>حجم خط الكتابة:</span>
+                <span>حجم الخط:</span>
                 <button type="button" class="btn-step" id="fontDecBtn">-</button>
-                <span class="val-display" id="disp-inputFont">{{ font_size }}px</span>
+                <span class="val-display" id="disp-inputFont">16px</span>
                 <button type="button" class="btn-step" id="fontIncBtn">+</button>
             </div>
         </div>
 
-        <!-- ورقة النموذج A4 -->
         <div class="a4-page" id="printableArea">
             <div class="side-title-wrapper">
                 <div class="vertical-title">
@@ -389,116 +355,133 @@
             <div class="table-container" id="tableContainer">
                 <table class="unified-table">
                     <tbody>
-                        {% macro render_row(h, title1, title2, key, is_area=False) %}
-                        <tr style="height: {{ h }}mm;">
-                            <td class="label-col">
-                                <div class="rotated-label-box">
-                                    <div class="rotated-label">
-                                        <span>{{ title1 }}</span>
-                                        {% if title2 %}<span>{{ title2 }}</span>{% endif %}
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="input-col">
-                                {% if is_pdf %}
-                                    <div class="pdf-text-val" style="white-space: {{ 'pre-wrap' if is_area else 'nowrap' }};">
-                                        {{ form_data.get(key, '') }}
-                                    </div>
-                                {% else %}
-                                    {% if is_area %}
-                                        <textarea data-key="{{ key }}">{{ form_data.get(key, '') }}</textarea>
-                                    {% else %}
-                                        <input type="text" data-key="{{ key }}" value="{{ form_data.get(key, '') }}">
-                                    {% endif %}
-                                {% endif %}
-                            </td>
+                        <tr style="height: 19.76mm;">
+                            <td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الملاحظات</span><span>ورقم الهاتف</span></div></div></td>
+                            <td class="input-col"><textarea data-key="notes_phone"></textarea></td>
                         </tr>
-                        {% endmacro %}
-
-                        {{ render_row(19.76, 'الملاحظات', 'ورقم الهاتف', 'notes_phone', True) }}
-                        {{ render_row(17.16, 'رقم البطاقة', 'التموينية', 'ration_card') }}
-                        {{ render_row(14.56, 'اقرب نقطة', 'دالة', 'nearest_landmark') }}
-                        {{ render_row(8.84, 'دار', '', 'house_number') }}
-                        {{ render_row(8.84, 'زقاق', '', 'alley') }}
-                        {{ render_row(8.84, 'محلة', '', 'neighborhood') }}
-                        {{ render_row(9.88, 'الحي', '', 'district') }}
-                        {{ render_row(11.96, 'المحافظة', '', 'governorate') }}
-                        {{ render_row(11.44, 'الصفحة', '', 'page_number') }}
-                        {{ render_row(10.40, 'السجل', '', 'record_number') }}
-                        {{ render_row(11.96, 'رقم', 'الهوية', 'id_number') }}
-                        {{ render_row(11.96, 'دائرة', 'الاحوال', 'civil_status_dept') }}
-                        {{ render_row(13.52, 'اسم جد', 'الزوج / ـة', 'spouse_grandfather') }}
-                        {{ render_row(13.52, 'اسم اب', 'الزوج / ـة', 'spouse_father') }}
-                        {{ render_row(11.96, 'اسم', 'الزوج / ـة', 'spouse_name') }}
-                        {{ render_row(9.88, 'جد الام', '', 'mother_grandfather') }}
-                        {{ render_row(9.88, 'أب الام', '', 'mother_father') }}
-                        {{ render_row(9.88, 'اسم الام', '', 'mother_name') }}
-                        {{ render_row(11.96, 'تاريخ', 'الولادة', 'birth_date') }}
-                        {{ render_row(9.88, 'اللقب', '', 'surname') }}
-                        {{ render_row(9.88, 'اب الجد', '', 'great_grandfather') }}
-                        {{ render_row(9.36, 'الجد', '', 'grandfather') }}
-                        {{ render_row(9.36, 'الاب', '', 'father') }}
-                        {{ render_row(9.36, 'الاسم', '', 'name') }}
+                        <tr style="height: 17.16mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>رقم البطاقة</span><span>التموينية</span></div></div></td><td class="input-col"><input type="text" data-key="ration_card"></td></tr>
+                        <tr style="height: 14.56mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اقرب نقطة</span><span>دالة</span></div></div></td><td class="input-col"><textarea data-key="nearest_landmark"></textarea></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>دار</span></div></div></td><td class="input-col"><input type="text" data-key="house_number"></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>زقاق</span></div></div></td><td class="input-col"><input type="text" data-key="alley"></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>محلة</span></div></div></td><td class="input-col"><input type="text" data-key="neighborhood"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الحي</span></div></div></td><td class="input-col"><input type="text" data-key="district"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>المحافظة</span></div></div></td><td class="input-col"><input type="text" data-key="governorate"></td></tr>
+                        <tr style="height: 11.44mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الصفحة</span></div></div></td><td class="input-col"><input type="text" data-key="page_number"></td></tr>
+                        <tr style="height: 10.40mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>السجل</span></div></div></td><td class="input-col"><input type="text" data-key="record_number"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>رقم</span><span>الهوية</span></div></div></td><td class="input-col"><input type="text" data-key="id_number"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>دائرة</span><span>الاحوال</span></div></div></td><td class="input-col"><textarea data-key="civil_status_dept"></textarea></td></tr>
+                        <tr style="height: 13.52mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم جد</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_grandfather"></td></tr>
+                        <tr style="height: 13.52mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم اب</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_father"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_name"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>جد الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_grandfather"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>أب الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_father"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_name"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>تاريخ</span><span>الولادة</span></div></div></td><td class="input-col"><input type="text" data-key="birth_date"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اللقب</span></div></div></td><td class="input-col"><input type="text" data-key="surname"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اب الجد</span></div></div></td><td class="input-col"><input type="text" data-key="great_grandfather"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الجد</span></div></div></td><td class="input-col"><input type="text" data-key="grandfather"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الاب</span></div></div></td><td class="input-col"><input type="text" data-key="father"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الاسم</span></div></div></td><td class="input-col"><input type="text" data-key="name"></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    {% if not is_pdf %}
     <script>
-        const STORAGE_INPUTS = 'security_form_user_inputs';
-        let currentInputFont = {{ font_size }};
+        const STORAGE_INPUTS = 'security_form_saved_inputs';
+        const STORAGE_FONT = 'security_form_font_size';
+        let currentInputFont = 16;
+        let isExporting = false;
 
         window.addEventListener('DOMContentLoaded', () => {
-            const savedData = JSON.parse(localStorage.getItem(STORAGE_INPUTS) || '{}');
+            loadFormData();
+
             document.querySelectorAll('[data-key]').forEach(el => {
-                const key = el.getAttribute('data-key');
-                if (savedData[key] !== undefined) {
-                    el.value = savedData[key];
+                el.addEventListener('input', saveFormData);
+                el.addEventListener('keyup', saveFormData);
+                el.addEventListener('change', saveFormData);
+                el.addEventListener('cut', () => setTimeout(saveFormData, 10));
+                el.addEventListener('paste', () => setTimeout(saveFormData, 10));
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if ((e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || 
+                    (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace'))) {
+                    e.preventDefault();
+                    clearSavedData();
                 }
-                
-                el.addEventListener('input', () => {
-                    savedData[key] = el.value;
-                    localStorage.setItem(STORAGE_INPUTS, JSON.stringify(savedData));
-                });
             });
 
-            document.getElementById('printBtn').addEventListener('click', function() {
-                this.blur();
+            const printBtn = document.getElementById('printBtn');
+            printBtn.onclick = function(e) {
+                e.preventDefault();
                 if (document.activeElement) document.activeElement.blur();
-                window.print();
-            });
+                setTimeout(() => {
+                    window.print();
+                }, 50);
+            };
 
-            document.getElementById('pdfBtn').addEventListener('click', function() {
-                this.blur();
-                exportPDFViaBackend();
-            });
+            const pdfBtn = document.getElementById('pdfBtn');
+            pdfBtn.onclick = function(e) {
+                e.preventDefault();
+                exportPDF();
+            };
 
             document.getElementById('clearBtn').addEventListener('click', function() {
-                this.blur();
                 clearSavedData();
             });
 
             document.getElementById('fontDecBtn').addEventListener('click', function() {
-                this.blur();
                 adjustInputFont(-1);
             });
 
             document.getElementById('fontIncBtn').addEventListener('click', function() {
-                this.blur();
                 adjustInputFont(1);
             });
         });
+
+        function saveFormData() {
+            const data = {};
+            document.querySelectorAll('[data-key]').forEach(el => {
+                data[el.getAttribute('data-key')] = el.value;
+            });
+            localStorage.setItem(STORAGE_INPUTS, JSON.stringify(data));
+        }
+
+        function loadFormData() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(STORAGE_INPUTS) || '{}');
+                document.querySelectorAll('[data-key]').forEach(el => {
+                    const key = el.getAttribute('data-key');
+                    if (saved[key] !== undefined) {
+                        el.value = saved[key];
+                    }
+                });
+
+                const savedFont = localStorage.getItem(STORAGE_FONT);
+                if (savedFont) {
+                    currentInputFont = parseFloat(savedFont);
+                    applyInputFont();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
 
         function adjustInputFont(delta) {
             const next = +(currentInputFont + delta).toFixed(1);
             if (next >= 8 && next <= 36) {
                 currentInputFont = next;
-                document.documentElement.style.setProperty('--input-font-size', currentInputFont + 'px');
-                const disp = document.getElementById('disp-inputFont');
-                if (disp) disp.innerText = currentInputFont + 'px';
+                localStorage.setItem(STORAGE_FONT, currentInputFont);
+                applyInputFont();
             }
+        }
+
+        function applyInputFont() {
+            document.documentElement.style.setProperty('--input-font-size', currentInputFont + 'px');
+            const disp = document.getElementById('disp-inputFont');
+            if (disp) disp.innerText = currentInputFont + 'px';
         }
 
         function clearSavedData() {
@@ -510,61 +493,109 @@
             }
         }
 
-        async function exportPDFViaBackend() {
+        async function exportPDF() {
+            if (isExporting) return;
+            isExporting = true;
+
             const btn = document.getElementById('pdfBtn');
             const originalText = btn.innerText;
-            btn.innerText = 'جاري المعالجة...';
+            btn.innerText = 'جاري التنزيل...';
             btn.disabled = true;
 
-            const currentData = {};
-            document.querySelectorAll('[data-key]').forEach(el => {
-                currentData[el.getAttribute('data-key')] = el.value;
-            });
+            if (document.activeElement) document.activeElement.blur();
+
+            const printableElement = document.getElementById('printableArea');
+            const fields = printableElement.querySelectorAll('.input-col input, .input-col textarea');
+            const tempDivs = [];
 
             try {
-                const response = await fetch('/api/export-pdf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        data: currentData,
-                        font_size: currentInputFont
-                    })
+                fields.forEach(field => {
+                    const val = field.value || '';
+                    const isTextarea = field.tagName.toLowerCase() === 'textarea';
+                    const tempDiv = document.createElement('div');
+                    
+                    tempDiv.innerText = val;
+                    tempDiv.style.width = '100%';
+                    tempDiv.style.height = '100%';
+                    tempDiv.style.display = 'flex';
+                    tempDiv.style.alignItems = 'center';
+                    tempDiv.style.justifyContent = 'center';
+                    tempDiv.style.fontSize = currentInputFont + 'px';
+                    tempDiv.style.fontWeight = 'bold';
+                    tempDiv.style.color = '#000000';
+                    tempDiv.style.textAlign = 'center';
+                    tempDiv.style.fontFamily = 'Arial, Tahoma, sans-serif';
+                    
+                    if (isTextarea) {
+                        tempDiv.style.whiteSpace = 'pre-wrap';
+                        tempDiv.style.lineHeight = '1.2';
+                        tempDiv.style.padding = '2px 4px';
+                        tempDiv.style.wordBreak = 'break-word';
+                    } else {
+                        tempDiv.style.whiteSpace = 'nowrap';
+                        tempDiv.style.overflow = 'hidden';
+                    }
+                    
+                    field.style.display = 'none';
+                    field.parentNode.appendChild(tempDiv);
+                    tempDivs.push(tempDiv);
                 });
 
-                if (!response.ok) throw new Error('فشل التصدير من الخادم');
+                const canvas = await html2canvas(printableElement, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
 
-                const blob = await response.blob();
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4',
+                    compress: true
+                });
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                
                 const fileName = 'نموذج_رقم_1.pdf';
+                const pdfBlob = pdf.output('blob');
+                const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-                const file = new File([blob], fileName, { type: 'application/pdf' });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
-                        files: [file],
-                        title: fileName
+                        files: [file]
                     });
                 } else {
-                    const blobUrl = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = blobUrl;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
+                    const downloadBlob = new Blob([pdfBlob], { type: 'application/octet-stream' });
+                    const blobUrl = URL.createObjectURL(downloadBlob);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = blobUrl;
+                    downloadLink.download = fileName;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+
                     setTimeout(() => {
-                        document.body.removeChild(link);
+                        document.body.removeChild(downloadLink);
                         URL.revokeObjectURL(blobUrl);
-                    }, 2500);
+                    }, 2000);
                 }
+
             } catch (err) {
                 if (err.name !== 'AbortError') {
                     console.error(err);
-                    alert('حدث خطأ أثناء استخراج الملف');
+                    alert('حدث خطأ أثناء تصدير الملف');
                 }
             } finally {
+                fields.forEach(field => field.style.display = '');
+                tempDivs.forEach(div => div.remove());
                 btn.innerText = originalText;
                 btn.disabled = false;
+                isExporting = false;
             }
         }
     </script>
-    {% endif %}
 </body>
 </html>
