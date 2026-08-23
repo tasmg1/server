@@ -2,7 +2,6 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <!-- إعطاء حرية التكبير والتحريك الطبيعية للأجهزة مع منع تجمد الشاشة -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
 
@@ -28,10 +27,6 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 
-           تلوين الخلفية الأساسية بالرمادي 
-           لضمان عدم ظهور أي مساحات بيضاء فارغة 
-        */
         html, body {
             background-color: {{ '#ffffff' if is_pdf else '#525659' }};
             margin: 0;
@@ -41,11 +36,6 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* 
-           الحاوية الذكية: 
-           تتمدد لتشمل الورقة بالكامل وتتمركز في الشاشات الكبيرة 
-           وتمنع الفراغات الجانبية في الشاشات الصغيرة 
-        */
         .main-wrapper {
             min-width: 100%;
             width: max-content;
@@ -125,7 +115,6 @@
             color: #007bff;
         }
 
-        /* ورقة A4 الثابتة */
         .a4-page {
             width: 794px;
             height: 1123px;
@@ -206,9 +195,10 @@
             line-height: 1.1; text-align: center; white-space: nowrap;
         }
 
+        .rotated-label span { display: block; white-space: nowrap; }
+
         .input-col { width: calc(100% - var(--label-width)); }
 
-        /* تجميد النصوص والخلايا بشكل قاطع المطلق Absolute */
         .input-col input,
         .input-col textarea,
         .pdf-text-val {
@@ -225,7 +215,6 @@
         .input-col textarea { padding: 4px; line-height: 1.2; white-space: pre-wrap; }
         .pdf-text-val { display: flex; align-items: center; justify-content: center; }
 
-        /* إعدادات الطباعة */
         @page { size: A4 portrait; margin: 0 !important; }
         @media print {
             html, body {
@@ -243,9 +232,7 @@
 </head>
 <body>
 
-    <!-- الحاوية المرنة لإلغاء المساحات الفارغة -->
     <div class="main-wrapper">
-        
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
@@ -417,13 +404,14 @@
             }
         }
 
+        // دالة التصدير المعادة لنفس نظام الواجهة الأصلية تماماً 
         async function exportPDFBackend() {
             if (isExporting) return;
             isExporting = true;
 
             const btn = document.getElementById('pdfBtn');
             const originalText = btn.innerText;
-            btn.innerText = 'جاري التصدير...';
+            btn.innerText = 'جاري التنزيل...';
             btn.disabled = true;
 
             if (document.activeElement) document.activeElement.blur();
@@ -445,20 +433,30 @@
 
                 if (!response.ok) throw new Error('فشل السيرفر');
 
-                const blob = await response.blob();
+                const pdfBlob = await response.blob();
                 const fileName = 'نموذج_رقم_1.pdf';
+                const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-                const blobUrl = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = fileName;
-                document.body.appendChild(link);
-                link.click();
+                // نظام المشاركة (كما كان في النسخة السابقة بالضبط) لضمان حفظه بشكل سليم
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file]
+                    });
+                } else {
+                    // إجبار التنزيل المباشر (مثلما كان بالضبط بامتداد octet-stream لحفظه كملف إجباري)
+                    const downloadBlob = new Blob([pdfBlob], { type: 'application/octet-stream' });
+                    const blobUrl = URL.createObjectURL(downloadBlob);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = blobUrl;
+                    downloadLink.download = fileName;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
 
-                setTimeout(() => {
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(blobUrl);
-                }, 2500);
+                    setTimeout(() => {
+                        document.body.removeChild(downloadLink);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 2000);
+                }
 
             } catch (err) {
                 console.error(err);
