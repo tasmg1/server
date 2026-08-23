@@ -1,22 +1,16 @@
-FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
+FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# تثبيت حزم الخطوط العربية
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    fonts-noto-core \
-    fonts-noto-extra \
-    fonts-dejavu-core \
-    && rm -rf /var/lib/apt/lists/*
-
-# تثبيت مكتبات البايثون
+# تثبيت المكتبات الأساسية فقط
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# نسخ كامل الملفات
+# نسخ ملفات المشروع
 COPY . .
 
-# تشغيل السيرفر على منفذ Railway
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# تشغيل Gunicorn بـ 4 Workers و Uvicorn Worker لتحمّل أكثر من 1000 اتصال متزامن بكفاءة
+CMD exec gunicorn -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-8080} --access-logfile - --error-logfile - main:app
