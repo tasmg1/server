@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+    <title>نموذج رقم 1</title>
+
+    <!-- تضمين خط Noto Naskh Arabic الرسمي لضمان تطابق الخطوط في السيرفر والمتصفح -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --table-width: 52mm;
+            --table-top: 11mm;
+            --table-right: 17mm;
+            --title-top: 32mm;
+            --title-right: -3mm;
+            --label-width: 17%;
+            --label-font-size: 10px;
+            --input-font-size: {{ font_size }}px;
+            --title-font-size: 13px;
+            --border-thickness: 2px;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Noto Naskh Arabic', Arial, Tahoma, sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
+            margin: 0;
+            padding: {{ '0' if is_pdf else '10px 0 40px 0' }};
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .page-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 210mm;
+            max-width: 96vw;
+            margin: 0 auto;
+        }
+
+        /* شريط التحكم */
+        .controls {
+            margin-bottom: 10px;
+            display: {{ 'none' if is_pdf else 'flex' }};
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: #ffffff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            color: #ffffff;
+            border: none;
+            padding: 7px 14px;
+            font-size: 13.5px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            outline: none;
+            transition: transform 0.1s ease, opacity 0.1s ease;
+        }
+
+        .btn-action:active, .btn-step:active {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+
+        .btn-print { background-color: #007bff; }
+        .btn-pdf { background-color: #28a745; }
+        .btn-clear { background-color: #dc3545; }
+
+        @media (hover: hover) and (pointer: fine) {
+            .btn-print:hover { background-color: #0056b3; }
+            .btn-pdf:hover { background-color: #218838; }
+            .btn-clear:hover { background-color: #c82333; }
+            .btn-step:hover { background-color: #e2e6ea; }
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12.5px;
+            font-weight: bold;
+            color: #333333;
+            background: #f8f9fa;
+            padding: 3px 6px;
+            border-radius: 6px;
+            border: 1px solid #ced4da;
+        }
+
+        .btn-step {
+            background-color: #ffffff;
+            color: #212529;
+            border: 1px solid #adb5bd;
+            width: 26px;
+            height: 26px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .val-display {
+            min-width: 40px;
+            text-align: center;
+            font-size: 12.5px;
+            font-weight: 800;
+            color: #007bff;
+        }
+
+        /* ورقة A4 */
+        .a4-page {
+            width: 210mm;
+            height: 297mm;
+            min-width: 210mm;
+            min-height: 297mm;
+            max-height: 297mm;
+            background: #ffffff;
+            position: relative;
+            box-shadow: {{ 'none' if is_pdf else '0 0 15px rgba(0,0,0,0.4)' }};
+            margin: 0;
+            overflow: hidden;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            flex-shrink: 0;
+        }
+
+        .side-title-wrapper {
+            position: absolute;
+            top: var(--title-top);
+            right: var(--title-right);
+            width: 20mm;
+            height: 250mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .vertical-title {
+            position: absolute;
+            transform: rotate(90deg);
+            -webkit-transform: rotate(90deg);
+            transform-origin: center center;
+            white-space: nowrap;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            text-align: center;
+        }
+
+        .vertical-title .title-head {
+            font-size: var(--title-font-size);
+            font-weight: bold;
+            color: #000000;
+            margin-bottom: 2px;
+        }
+
+        .vertical-title .title-sub {
+            font-size: calc(var(--title-font-size) - 1.5px);
+            font-weight: bold;
+            color: #000000;
+        }
+
+        .table-container {
+            position: absolute;
+            top: var(--table-top);
+            right: var(--table-right);
+            width: var(--table-width);
+            flex-shrink: 0;
+            page-break-inside: avoid;
+        }
+
+        table.unified-table {
+            width: 100%;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+            border: var(--border-thickness) solid #000000 !important;
+            table-layout: fixed;
+            page-break-inside: avoid;
+        }
+
+        table.unified-table tr {
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        table.unified-table td {
+            border: var(--border-thickness) solid #000000 !important;
+            padding: 0 !important;
+            vertical-align: middle;
+        }
+
+        .label-col {
+            width: var(--label-width);
+            text-align: center;
+            background-color: #ffffff;
+            vertical-align: middle;
+            position: relative;
+            padding: 0 !important;
+        }
+
+        .rotated-label-box {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .rotated-label {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5px;
+            transform: rotate(90deg);
+            -webkit-transform: rotate(90deg);
+            transform-origin: center center;
+            font-size: var(--label-font-size);
+            font-weight: bold;
+            color: #000000;
+            line-height: 1.1;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .rotated-label span {
+            display: block;
+            white-space: nowrap;
+        }
+
+        .input-col { 
+            width: calc(100% - var(--label-width)); 
+        }
+
+        .input-col input,
+        .input-col textarea,
+        .pdf-text-val {
+            width: 100%;
+            height: 100%;
+            border: none !important;
+            outline: none;
+            padding: 0 6px;
+            font-size: var(--input-font-size);
+            font-weight: bold;
+            background: transparent;
+            font-family: inherit;
+            color: #000000;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-col textarea {
+            resize: none;
+            padding: 2px 4px;
+            line-height: 1.2;
+            white-space: pre-wrap;
+            overflow: hidden;
+            display: block;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 0 !important;
+        }
+
+        @media print {
+            html, body {
+                width: 210mm !important;
+                height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+                overflow: hidden !important;
+            }
+
+            .controls {
+                display: none !important;
+            }
+
+            .a4-page {
+                box-shadow: none !important;
+                margin: 0 !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                position: relative !important;
+                overflow: hidden !important;
+            }
+
+            .side-title-wrapper {
+                position: absolute !important;
+                top: var(--title-top) !important;
+                right: var(--title-right) !important;
+            }
+
+            .table-container {
+                position: absolute !important;
+                top: var(--table-top) !important;
+                right: var(--table-right) !important;
+                width: var(--table-width) !important;
+            }
+
+            table.unified-table {
+                border: var(--border-thickness) solid #000000 !important;
+                border-collapse: collapse !important;
+                page-break-inside: avoid !important;
+            }
+
+            table.unified-table td {
+                border: var(--border-thickness) solid #000000 !important;
+                color: #000000 !important;
+                page-break-inside: avoid !important;
+            }
+
+            .rotated-label {
+                transform: rotate(90deg) !important;
+                -webkit-transform: rotate(90deg) !important;
+                font-size: var(--label-font-size) !important;
+            }
+
+            .vertical-title {
+                transform: rotate(90deg) !important;
+                -webkit-transform: rotate(90deg) !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page-wrapper">
+        <!-- شريط التحكم -->
+        <div class="controls">
+            <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
+            <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
+            <button type="button" class="btn-action btn-clear" id="clearBtn">مسح الحقول</button>
+            
+            <div class="control-group">
+                <span>حجم خط الكتابة:</span>
+                <button type="button" class="btn-step" id="fontDecBtn">-</button>
+                <span class="val-display" id="disp-inputFont">{{ font_size }}px</span>
+                <button type="button" class="btn-step" id="fontIncBtn">+</button>
+            </div>
+        </div>
+
+        <!-- ورقة النموذج A4 -->
+        <div class="a4-page" id="printableArea">
+            <div class="side-title-wrapper">
+                <div class="vertical-title">
+                    <div class="title-head">نموذج رقم 1</div>
+                    <div class="title-sub">قائمة طلب المعلومات وملاك الوزارات المرسلة من المكاتب الفرعية الى المكتب الوطني للتصاريح الامنية</div>
+                </div>
+            </div>
+
+            <div class="table-container" id="tableContainer">
+                <table class="unified-table">
+                    <tbody>
+                        {% macro render_row(h, title1, title2, key, is_area=False) %}
+                        <tr style="height: {{ h }}mm;">
+                            <td class="label-col">
+                                <div class="rotated-label-box">
+                                    <div class="rotated-label">
+                                        <span>{{ title1 }}</span>
+                                        {% if title2 %}<span>{{ title2 }}</span>{% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="input-col">
+                                {% if is_pdf %}
+                                    <div class="pdf-text-val" style="white-space: {{ 'pre-wrap' if is_area else 'nowrap' }};">
+                                        {{ form_data.get(key, '') }}
+                                    </div>
+                                {% else %}
+                                    {% if is_area %}
+                                        <textarea data-key="{{ key }}">{{ form_data.get(key, '') }}</textarea>
+                                    {% else %}
+                                        <input type="text" data-key="{{ key }}" value="{{ form_data.get(key, '') }}">
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endmacro %}
+
+                        {{ render_row(19.76, 'الملاحظات', 'ورقم الهاتف', 'notes_phone', True) }}
+                        {{ render_row(17.16, 'رقم البطاقة', 'التموينية', 'ration_card') }}
+                        {{ render_row(14.56, 'اقرب نقطة', 'دالة', 'nearest_landmark') }}
+                        {{ render_row(8.84, 'دار', '', 'house_number') }}
+                        {{ render_row(8.84, 'زقاق', '', 'alley') }}
+                        {{ render_row(8.84, 'محلة', '', 'neighborhood') }}
+                        {{ render_row(9.88, 'الحي', '', 'district') }}
+                        {{ render_row(11.96, 'المحافظة', '', 'governorate') }}
+                        {{ render_row(11.44, 'الصفحة', '', 'page_number') }}
+                        {{ render_row(10.40, 'السجل', '', 'record_number') }}
+                        {{ render_row(11.96, 'رقم', 'الهوية', 'id_number') }}
+                        {{ render_row(11.96, 'دائرة', 'الاحوال', 'civil_status_dept') }}
+                        {{ render_row(13.52, 'اسم جد', 'الزوج / ـة', 'spouse_grandfather') }}
+                        {{ render_row(13.52, 'اسم اب', 'الزوج / ـة', 'spouse_father') }}
+                        {{ render_row(11.96, 'اسم', 'الزوج / ـة', 'spouse_name') }}
+                        {{ render_row(9.88, 'جد الام', '', 'mother_grandfather') }}
+                        {{ render_row(9.88, 'أب الام', '', 'mother_father') }}
+                        {{ render_row(9.88, 'اسم الام', '', 'mother_name') }}
+                        {{ render_row(11.96, 'تاريخ', 'الولادة', 'birth_date') }}
+                        {{ render_row(9.88, 'اللقب', '', 'surname') }}
+                        {{ render_row(9.88, 'اب الجد', '', 'great_grandfather') }}
+                        {{ render_row(9.36, 'الجد', '', 'grandfather') }}
+                        {{ render_row(9.36, 'الاب', '', 'father') }}
+                        {{ render_row(9.36, 'الاسم', '', 'name') }}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if not is_pdf %}
+    <script>
+        const STORAGE_INPUTS = 'security_form_user_inputs';
+        let currentInputFont = {{ font_size }};
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedData = JSON.parse(localStorage.getItem(STORAGE_INPUTS) || '{}');
+            document.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (savedData[key] !== undefined) {
+                    el.value = savedData[key];
+                }
+                
+                el.addEventListener('input', () => {
+                    savedData[key] = el.value;
+                    localStorage.setItem(STORAGE_INPUTS, JSON.stringify(savedData));
+                });
+            });
+
+            document.getElementById('printBtn').addEventListener('click', function() {
+                this.blur();
+                if (document.activeElement) document.activeElement.blur();
+                window.print();
+            });
+
+            document.getElementById('pdfBtn').addEventListener('click', function() {
+                this.blur();
+                exportPDFViaBackend();
+            });
+
+            document.getElementById('clearBtn').addEventListener('click', function() {
+                this.blur();
+                clearSavedData();
+            });
+
+            document.getElementById('fontDecBtn').addEventListener('click', function() {
+                this.blur();
+                adjustInputFont(-1);
+            });
+
+            document.getElementById('fontIncBtn').addEventListener('click', function() {
+                this.blur();
+                adjustInputFont(1);
+            });
+        });
+
+        function adjustInputFont(delta) {
+            const next = +(currentInputFont + delta).toFixed(1);
+            if (next >= 8 && next <= 36) {
+                currentInputFont = next;
+                document.documentElement.style.setProperty('--input-font-size', currentInputFont + 'px');
+                const disp = document.getElementById('disp-inputFont');
+                if (disp) disp.innerText = currentInputFont + 'px';
+            }
+        }
+
+        function clearSavedData() {
+            if (confirm('هل تريد مسح جميع البيانات المكتوبة؟')) {
+                localStorage.removeItem(STORAGE_INPUTS);
+                document.querySelectorAll('[data-key]').forEach(el => {
+                    el.value = '';
+                });
+            }
+        }
+
+        async function exportPDFViaBackend() {
+            const btn = document.getElementById('pdfBtn');
+            const originalText = btn.innerText;
+            btn.innerText = 'جاري المعالجة...';
+            btn.disabled = true;
+
+            const currentData = {};
+            document.querySelectorAll('[data-key]').forEach(el => {
+                currentData[el.getAttribute('data-key')] = el.value;
+            });
+
+            try {
+                const response = await fetch('/api/export-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: currentData,
+                        font_size: currentInputFont
+                    })
+                });
+
+                if (!response.ok) throw new Error('فشل التصدير من الخادم');
+
+                const blob = await response.blob();
+                const fileName = 'نموذج_رقم_1.pdf';
+
+                const file = new File([blob], fileName, { type: 'application/pdf' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: fileName
+                    });
+                } else {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 2500);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error(err);
+                    alert('حدث خطأ أثناء استخراج الملف');
+                }
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+    {% endif %}
+</body>
+</html>
