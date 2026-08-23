@@ -2,8 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <!-- ملاءمة الشاشة تلقائياً لظهور الورقة كاملة على جميع الهواتف -->
-    <meta name="viewport" content="width=820, user-scalable=yes">
+    <!-- تم ضبط الـ Viewport بناءً على طلبك مع السماح بالتكبير -->
+    <meta name="viewport" content="width=794, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
 
     <style>
@@ -15,7 +15,7 @@
             --title-right: -3mm;
             --label-width: 17%;
             --label-font-size: 10px;
-            --input-font-size: {{ font_size }}px;
+            --input-font-size: {{ font_size if font_size else 16 }}px;
             --title-font-size: 13px;
             --border-thickness: 2px;
         }
@@ -28,21 +28,15 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        html {
+        html, body {
             background-color: {{ '#ffffff' if is_pdf else '#525659' }};
-            min-height: 100%;
-            width: 100%;
-        }
-
-        body {
-            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
-            margin: 0;
-            padding: {{ '0' if is_pdf else '12px 0 40px 0' }};
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
+            margin: 0 auto;
+            padding: 0;
+            width: 794px;
+            /* السماح بالتمرير الحر على جميع الهواتف */
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .main-container {
@@ -50,10 +44,6 @@
             margin: 0 auto;
             padding: 0;
             background-color: #ffffff;
-            box-shadow: {{ 'none' if is_pdf else '0 4px 20px rgba(0,0,0,0.35)' }};
-            display: flex;
-            flex-direction: column;
-            align-items: center;
         }
 
         .controls {
@@ -64,7 +54,7 @@
             justify-content: space-between;
             gap: 6px;
             background: #ffffff;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-bottom: 2px solid #525659;
         }
 
@@ -241,6 +231,7 @@
             width: calc(100% - var(--label-width)); 
         }
 
+        /* دمج تنسيق النصوص للطباعة من الباكيند */
         .input-col input,
         .input-col textarea,
         .pdf-text-val {
@@ -297,7 +288,6 @@
                 height: 297mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                box-shadow: none !important;
                 background: #ffffff !important;
             }
 
@@ -349,7 +339,6 @@
 <body>
 
     <div class="main-container">
-        <!-- شريط التحكم -->
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
@@ -358,7 +347,7 @@
             <div class="control-group">
                 <span>حجم الخط:</span>
                 <button type="button" class="btn-step" id="fontDecBtn">-</button>
-                <span class="val-display" id="disp-inputFont">{{ font_size }}px</span>
+                <span class="val-display" id="disp-inputFont">{{ font_size if font_size else 16 }}px</span>
                 <button type="button" class="btn-step" id="fontIncBtn">+</button>
             </div>
         </div>
@@ -374,6 +363,7 @@
             <div class="table-container" id="tableContainer">
                 <table class="unified-table">
                     <tbody>
+                        <!-- الماكرو المسؤول عن الرندرة الديناميكية للحقول (إدخال للمستخدم / نص ثابت للتصدير) -->
                         {% macro render_row(h, title1, title2, key, is_area=False) %}
                         <tr style="height: {{ h }}mm;">
                             <td class="label-col">
@@ -430,11 +420,12 @@
         </div>
     </div>
 
+    <!-- تفعيل الأكواد البرمجية للواجهة فقط للمستخدم، وليس للباكيند أثناء التصدير -->
     {% if not is_pdf %}
     <script>
         const STORAGE_INPUTS = 'security_form_saved_inputs';
         const STORAGE_FONT = 'security_form_font_size';
-        let currentInputFont = {{ font_size }};
+        let currentInputFont = {{ font_size if font_size else 16 }};
         let isExporting = false;
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -444,35 +435,42 @@
                 el.addEventListener('input', saveFormData);
                 el.addEventListener('keyup', saveFormData);
                 el.addEventListener('change', saveFormData);
+                el.addEventListener('cut', () => setTimeout(saveFormData, 10));
+                el.addEventListener('paste', () => setTimeout(saveFormData, 10));
             });
 
-            document.getElementById('printBtn').addEventListener('click', function(e) {
+            window.addEventListener('keydown', (e) => {
+                if ((e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || 
+                    (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace'))) {
+                    e.preventDefault();
+                    clearSavedData();
+                }
+            });
+
+            const printBtn = document.getElementById('printBtn');
+            printBtn.onclick = function(e) {
                 e.preventDefault();
-                this.blur();
                 if (document.activeElement) document.activeElement.blur();
                 setTimeout(() => {
                     window.print();
                 }, 50);
-            });
+            };
 
-            document.getElementById('pdfBtn').addEventListener('click', function(e) {
+            const pdfBtn = document.getElementById('pdfBtn');
+            pdfBtn.onclick = function(e) {
                 e.preventDefault();
-                this.blur();
                 exportPDFBackend();
-            });
+            };
 
             document.getElementById('clearBtn').addEventListener('click', function() {
-                this.blur();
                 clearSavedData();
             });
 
             document.getElementById('fontDecBtn').addEventListener('click', function() {
-                this.blur();
                 adjustInputFont(-1);
             });
 
             document.getElementById('fontIncBtn').addEventListener('click', function() {
-                this.blur();
                 adjustInputFont(1);
             });
         });
@@ -529,13 +527,14 @@
             }
         }
 
+        // دالة التصدير الاحترافية التي تتصل بالباكيند (FastAPI)
         async function exportPDFBackend() {
             if (isExporting) return;
             isExporting = true;
 
             const btn = document.getElementById('pdfBtn');
             const originalText = btn.innerText;
-            btn.innerText = 'جاري التصدير...';
+            btn.innerText = 'جاري المعالجة...';
             btn.disabled = true;
 
             if (document.activeElement) document.activeElement.blur();
@@ -561,6 +560,7 @@
                 const fileName = 'نموذج_رقم_1.pdf';
                 const file = new File([blob], fileName, { type: 'application/pdf' });
 
+                // نظام المشاركة والحفظ الذكي للهواتف والحواسيب
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
                         files: [file],
