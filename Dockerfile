@@ -4,7 +4,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# تثبيت حزم الخطوط العربية المعتمدة
+# تثبيت حزم الخطوط العربية
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-core \
     fonts-noto-extra \
@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# نسخ ملفات المشروع
+# نسخ كامل الملفات
 COPY . .
 
-# تشغيل الخادم مع قراءة المنفذ التلقائي الخاص بـ Railway
+# تشغيل السيرفر على منفذ Railway
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
