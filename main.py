@@ -2,15 +2,21 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.gzip import GZipMiddleware
 
-app = FastAPI(title="Security Form Fast Engine")
+app = FastAPI(
+    title="Security Form Fast Engine",
+    docs_url=None,  # تعطيل التوثيق في الإنتاج لتقليل استهلاك الذاكرة
+    redoc_url=None
+)
 
-# تحديد مجلد القوالب الذي يحتوي على ملف index.html
+# ضغط الملفات والاستجابات لتسريع التحميل وتوفير استهلاك الباندويث لآلاف المستخدمين
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_form(request: Request):
-    # إرسال صفحة الواجهة للمستخدم بسرعة فائقة
     return templates.TemplateResponse(
         "index.html", 
         {
@@ -20,8 +26,12 @@ async def serve_form(request: Request):
         }
     )
 
+# نقطة فحص الحالة السريعة لـ Health Checks على Railway
+@app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
-    # ربط البورت التلقائي الخاص بـ Railway
     port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, log_level="warning")
