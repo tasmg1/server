@@ -2,7 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=794, user-scalable=yes">
+    <!-- ملاءمة الشاشة تلقائياً لظهور الورقة كاملة على جميع الهواتف -->
+    <meta name="viewport" content="width=820, user-scalable=yes">
     <title>نموذج رقم 1</title>
 
     <style>
@@ -27,11 +28,21 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        html, body {
+        html {
             background-color: {{ '#ffffff' if is_pdf else '#525659' }};
-            margin: 0 auto;
-            padding: 0;
-            width: 794px;
+            min-height: 100%;
+            width: 100%;
+        }
+
+        body {
+            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
+            margin: 0;
+            padding: {{ '0' if is_pdf else '12px 0 40px 0' }};
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
         }
 
         .main-container {
@@ -39,6 +50,10 @@
             margin: 0 auto;
             padding: 0;
             background-color: #ffffff;
+            box-shadow: {{ 'none' if is_pdf else '0 4px 20px rgba(0,0,0,0.35)' }};
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         .controls {
@@ -49,7 +64,7 @@
             justify-content: space-between;
             gap: 6px;
             background: #ffffff;
-            padding: 6px 10px;
+            padding: 8px 12px;
             border-bottom: 2px solid #525659;
         }
 
@@ -282,6 +297,7 @@
                 height: 297mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                box-shadow: none !important;
                 background: #ffffff !important;
             }
 
@@ -428,42 +444,35 @@
                 el.addEventListener('input', saveFormData);
                 el.addEventListener('keyup', saveFormData);
                 el.addEventListener('change', saveFormData);
-                el.addEventListener('cut', () => setTimeout(saveFormData, 10));
-                el.addEventListener('paste', () => setTimeout(saveFormData, 10));
             });
 
-            window.addEventListener('keydown', (e) => {
-                if ((e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || 
-                    (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace'))) {
-                    e.preventDefault();
-                    clearSavedData();
-                }
-            });
-
-            const printBtn = document.getElementById('printBtn');
-            printBtn.onclick = function(e) {
+            document.getElementById('printBtn').addEventListener('click', function(e) {
                 e.preventDefault();
+                this.blur();
                 if (document.activeElement) document.activeElement.blur();
                 setTimeout(() => {
                     window.print();
                 }, 50);
-            };
+            });
 
-            const pdfBtn = document.getElementById('pdfBtn');
-            pdfBtn.onclick = function(e) {
+            document.getElementById('pdfBtn').addEventListener('click', function(e) {
                 e.preventDefault();
+                this.blur();
                 exportPDFBackend();
-            };
+            });
 
             document.getElementById('clearBtn').addEventListener('click', function() {
+                this.blur();
                 clearSavedData();
             });
 
             document.getElementById('fontDecBtn').addEventListener('click', function() {
+                this.blur();
                 adjustInputFont(-1);
             });
 
             document.getElementById('fontIncBtn').addEventListener('click', function() {
+                this.blur();
                 adjustInputFont(1);
             });
         });
@@ -520,7 +529,6 @@
             }
         }
 
-        /* تصدير PDF مباشر عبر محرك بايثون في الباكيند */
         async function exportPDFBackend() {
             if (isExporting) return;
             isExporting = true;
