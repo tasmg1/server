@@ -60,7 +60,6 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
         is_pdf=True
     )
 
-    # إنشاء صفحة بحجم A4 الدقيق بدقة 2x
     page = await browser_instance.new_page(
         viewport={"width": 794, "height": 1123},
         device_scale_factor=2
@@ -69,7 +68,6 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
     await page.set_content(rendered_html, wait_until="networkidle")
     await page.emulate_media(media="print")
 
-    # إنتاج ملف PDF قياسي مطابق للطباعة
     pdf_bytes = await page.pdf(
         format="A4",
         print_background=True,
