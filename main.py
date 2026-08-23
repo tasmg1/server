@@ -1,5 +1,6 @@
 import os
 import urllib.parse
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -17,6 +18,10 @@ class FormDataPayload(BaseModel):
 playwright_instance = None
 browser_instance = None
 
+# خوارزمية حماية السيرفر: معالجة 15 طلب PDF في نفس اللحظة كحد أقصى
+# والباقي ينتظر أجزاء من الثانية (لمنع انهيار السيرفر عند دخول 1000 مستخدم معاً)
+render_semaphore = asyncio.Semaphore(15)
+
 @app.on_event("startup")
 async def startup_event():
     global playwright_instance, browser_instance
@@ -26,8 +31,7 @@ async def startup_event():
         args=[
             "--no-sandbox",
             "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--font-render-hinting=none"
+            "--disable-dev-shm-usage"
         ]
     )
 
@@ -60,21 +64,28 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
         is_pdf=True
     )
 
-    page = await browser_instance.new_page(
-        viewport={"width": 794, "height": 1123},
-        device_scale_factor=2
-    )
-    
-    await page.set_content(rendered_html, wait_until="networkidle")
-    await page.emulate_media(media="print")
-
-    pdf_bytes = await page.pdf(
-        format="A4",
-        print_background=True,
-        prefer_css_page_size=True,
-        margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"}
-    )
-    await page.close()
+    # استخدام Semaphore لحماية الذاكرة العشوائية (RAM)
+    async with render_semaphore:
+        context = await browser_instance.new_context(
+            viewport={"width": 794, "height": 1123},
+            device_scale_factor=2
+        )
+        page = await context.new_page()
+        try:
+            await page.set_content(rendered_html, wait_until="networkidle")
+            await page.emulate_media(media="print")
+            
+            # إنتاج ملف PDF قياسي وحقيقي
+            pdf_bytes = await page.pdf(
+                format="A4",
+                print_background=True,
+                prefer_css_page_size=True,
+                margin={"top": "0mm", "right": "0mm", "bottom": "0mm", "left": "0mm"}
+            )
+        finally:
+            # إغلاق الصفحات فوراً لتحرير موارد السيرفر
+            await page.close()
+            await context.close()
 
     filename = "نموذج_رقم_1.pdf"
     encoded_filename = urllib.parse.quote(filename)
@@ -83,6 +94,7 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
+            # إجبار المتصفح على تحميل الملف بصيغة PDF فقط
             "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
         }
     )
