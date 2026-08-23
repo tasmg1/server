@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <!-- متوافق مع كل شاشات الهواتف مع دعم التكبير والتحريك -->
+    <!-- إعطاء حرية التكبير والتحريك الطبيعية للأجهزة مع منع تجمد الشاشة -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
 
@@ -28,28 +28,38 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        /* 
+           تلوين الخلفية الأساسية بالرمادي 
+           لضمان عدم ظهور أي مساحات بيضاء فارغة 
+        */
         html, body {
             background-color: {{ '#ffffff' if is_pdf else '#525659' }};
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
 
-        /* حاوية التوسيط والتمرير الحر للأجهزة الذكية */
-        .viewport-wrapper {
+        /* 
+           الحاوية الذكية: 
+           تتمدد لتشمل الورقة بالكامل وتتمركز في الشاشات الكبيرة 
+           وتمنع الفراغات الجانبية في الشاشات الصغيرة 
+        */
+        .main-wrapper {
+            min-width: 100%;
+            width: max-content;
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-width: max-content;
-            padding: {{ '0' if is_pdf else '10px 10px 40px 10px' }};
+            padding: {{ '0' if is_pdf else '15px' }};
+            margin: 0 auto;
+            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
         }
 
         .controls {
             width: 794px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             display: {{ 'none' if is_pdf else 'flex' }};
             align-items: center;
             justify-content: space-between;
@@ -115,7 +125,7 @@
             color: #007bff;
         }
 
-        /* ورقة A4 وتثبيتها بشكل صارم */
+        /* ورقة A4 الثابتة */
         .a4-page {
             width: 794px;
             height: 1123px;
@@ -146,7 +156,6 @@
         .vertical-title {
             position: absolute;
             transform: rotate(90deg);
-            -webkit-transform: rotate(90deg);
             transform-origin: center center;
             white-space: nowrap;
             display: flex;
@@ -175,112 +184,68 @@
             table-layout: fixed;
         }
 
-        table.unified-table tr {
-            overflow: hidden;
-        }
+        table.unified-table tr { overflow: hidden; }
 
         table.unified-table td {
             border: var(--border-thickness) solid #000000 !important;
             padding: 0 !important;
             vertical-align: middle;
-            position: relative; /* ضروري لتثبيت العناصر داخله */
+            position: relative;
             overflow: hidden;
         }
 
-        .label-col {
-            width: var(--label-width);
-            text-align: center;
-            background-color: #ffffff;
-        }
+        .label-col { width: var(--label-width); text-align: center; background-color: #ffffff; }
 
         .rotated-label-box {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;
         }
 
         .rotated-label {
-            position: absolute;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 1.5px;
-            transform: rotate(90deg);
-            font-size: var(--label-font-size);
-            font-weight: bold;
-            color: #000000;
-            line-height: 1.1;
-            text-align: center;
-            white-space: nowrap;
+            position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 1.5px; transform: rotate(90deg); font-size: var(--label-font-size); font-weight: bold; color: #000;
+            line-height: 1.1; text-align: center; white-space: nowrap;
         }
 
-        .input-col { 
-            width: calc(100% - var(--label-width)); 
-        }
+        .input-col { width: calc(100% - var(--label-width)); }
 
-        /* نظام التجميد الصارم للنصوص لمنع تغير حجم الخلايا */
+        /* تجميد النصوص والخلايا بشكل قاطع المطلق Absolute */
         .input-col input,
         .input-col textarea,
         .pdf-text-val {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             border: none !important;
-            outline: none;
-            padding: 0 6px;
-            font-size: var(--input-font-size);
-            font-weight: bold;
-            background: transparent;
-            font-family: inherit;
-            color: #000000;
-            text-align: center;
-            resize: none;
-            overflow: hidden;
-            margin: 0;
+            outline: none; padding: 0 6px;
+            font-size: var(--input-font-size); font-weight: bold;
+            background: transparent; font-family: inherit; color: #000000;
+            text-align: center; resize: none; overflow: hidden; margin: 0;
         }
 
-        .input-col textarea {
-            padding: 4px;
-            line-height: 1.2;
-            white-space: pre-wrap;
-        }
+        .input-col textarea { padding: 4px; line-height: 1.2; white-space: pre-wrap; }
+        .pdf-text-val { display: flex; align-items: center; justify-content: center; }
 
-        .pdf-text-val {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
+        /* إعدادات الطباعة */
         @page { size: A4 portrait; margin: 0 !important; }
-
         @media print {
             html, body {
-                width: 210mm !important;
-                height: 297mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-                overflow: hidden !important;
+                width: 210mm !important; height: 297mm !important; margin: 0 !important; padding: 0 !important;
+                background: #ffffff !important; overflow: hidden !important;
             }
             .controls { display: none !important; }
-            .viewport-wrapper { padding: 0 !important; }
+            .main-wrapper { padding: 0 !important; margin: 0 !important; display: block !important; width: 210mm !important; }
             .a4-page {
-                margin: 0 !important;
-                width: 210mm !important;
-                height: 297mm !important;
-                box-shadow: none !important;
+                margin: 0 !important; width: 210mm !important; height: 297mm !important;
+                box-shadow: none !important; border: none !important;
             }
         }
     </style>
 </head>
 <body>
 
-    <div class="viewport-wrapper">
+    <!-- الحاوية المرنة لإلغاء المساحات الفارغة -->
+    <div class="main-wrapper">
+        
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
@@ -376,7 +341,6 @@
                 el.addEventListener('change', saveFormData);
             });
 
-            // زر الطباعة: يفتح نافذة الطباعة الرسمية للجهاز بصيغة A4
             document.getElementById('printBtn').addEventListener('click', function(e) {
                 e.preventDefault();
                 this.blur();
@@ -384,7 +348,6 @@
                 setTimeout(() => window.print(), 50);
             });
 
-            // زر التصدير: يتصل بالسيرفر وينزل ملف PDF واحد فقط بشكل مباشر
             document.getElementById('pdfBtn').addEventListener('click', function(e) {
                 e.preventDefault();
                 this.blur();
@@ -454,7 +417,6 @@
             }
         }
 
-        // آلية التنزيل المباشر الصارمة (ملف PDF واحد فقط)
         async function exportPDFBackend() {
             if (isExporting) return;
             isExporting = true;
@@ -486,7 +448,6 @@
                 const blob = await response.blob();
                 const fileName = 'نموذج_رقم_1.pdf';
 
-                // إنشاء رابط تنزيل صريح ينزل بصيغة PDF فوراً دون نوافذ مشاركة مربكة
                 const blobUrl = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = blobUrl;
@@ -494,7 +455,6 @@
                 document.body.appendChild(link);
                 link.click();
 
-                // تنظيف الذاكرة
                 setTimeout(() => {
                     document.body.removeChild(link);
                     URL.revokeObjectURL(blobUrl);
