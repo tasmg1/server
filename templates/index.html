@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <!-- تم ضبط الـ Viewport بناءً على طلبك مع السماح بالتكبير -->
+    <!-- ضبط أبعاد الشاشة للسماح بالتكبير والتحريك الحر على جميع الهواتف -->
     <meta name="viewport" content="width=794, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
 
@@ -33,9 +33,7 @@
             margin: 0 auto;
             padding: 0;
             width: 794px;
-            /* السماح بالتمرير الحر على جميع الهواتف */
             overflow-x: auto;
-            overflow-y: auto;
             -webkit-overflow-scrolling: touch;
         }
 
@@ -180,19 +178,24 @@
             table-layout: fixed;
         }
 
+        table.unified-table tr {
+            /* إجبار إخفاء أي محتوى يتجاوز الطول لضمان ثبات التنسيق */
+            overflow: hidden;
+        }
+
         table.unified-table td {
             border: var(--border-thickness) solid #000000 !important;
             padding: 0 !important;
             vertical-align: middle;
+            /* ربط محتويات الخلية بمكانها بشكل صارم */
+            position: relative;
+            overflow: hidden;
         }
 
         .label-col {
             width: var(--label-width);
             text-align: center;
             background-color: #ffffff;
-            vertical-align: middle;
-            position: relative;
-            padding: 0 !important;
         }
 
         .rotated-label-box {
@@ -231,10 +234,15 @@
             width: calc(100% - var(--label-width)); 
         }
 
-        /* دمج تنسيق النصوص للطباعة من الباكيند */
+        /* 
+           التثبيت المطلق (Absolute Positioning):
+           السر وراء منع تغير أحجام الخلايا مهما طال النص! 
+        */
         .input-col input,
         .input-col textarea,
         .pdf-text-val {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
             width: 100%;
             height: 100%;
             border: none !important;
@@ -246,18 +254,21 @@
             font-family: inherit;
             color: #000000;
             text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            resize: none;
+            overflow: hidden;
+            margin: 0;
         }
 
         .input-col textarea {
-            resize: none;
-            padding: 2px 4px;
+            padding: 4px;
             line-height: 1.2;
             white-space: pre-wrap;
-            overflow: hidden;
-            display: block;
+        }
+
+        .pdf-text-val {
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         @page {
@@ -339,6 +350,7 @@
 <body>
 
     <div class="main-container">
+        <!-- شريط التحكم -->
         <div class="controls">
             <button type="button" class="btn-action btn-print" id="printBtn">طباعة</button>
             <button type="button" class="btn-action btn-pdf" id="pdfBtn">تصدير PDF</button>
@@ -352,6 +364,7 @@
             </div>
         </div>
 
+        <!-- ورقة A4 -->
         <div class="a4-page" id="printableArea">
             <div class="side-title-wrapper">
                 <div class="vertical-title">
@@ -363,7 +376,7 @@
             <div class="table-container" id="tableContainer">
                 <table class="unified-table">
                     <tbody>
-                        <!-- الماكرو المسؤول عن الرندرة الديناميكية للحقول (إدخال للمستخدم / نص ثابت للتصدير) -->
+                        <!-- رندرة الحقول مع ربطها بالباكيند للحفاظ على الاحترافية -->
                         {% macro render_row(h, title1, title2, key, is_area=False) %}
                         <tr style="height: {{ h }}mm;">
                             <td class="label-col">
@@ -420,7 +433,6 @@
         </div>
     </div>
 
-    <!-- تفعيل الأكواد البرمجية للواجهة فقط للمستخدم، وليس للباكيند أثناء التصدير -->
     {% if not is_pdf %}
     <script>
         const STORAGE_INPUTS = 'security_form_saved_inputs';
@@ -459,7 +471,7 @@
             const pdfBtn = document.getElementById('pdfBtn');
             pdfBtn.onclick = function(e) {
                 e.preventDefault();
-                exportPDFBackend();
+                exportPDFBackend(); // توجيه أمر التصدير للباكيند
             };
 
             document.getElementById('clearBtn').addEventListener('click', function() {
@@ -534,7 +546,7 @@
 
             const btn = document.getElementById('pdfBtn');
             const originalText = btn.innerText;
-            btn.innerText = 'جاري المعالجة...';
+            btn.innerText = 'جاري التصدير...';
             btn.disabled = true;
 
             if (document.activeElement) document.activeElement.blur();
