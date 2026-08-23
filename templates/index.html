@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>نموذج رقم 1</title>
     
-    <!-- تحميل خط عربي رسمي لضمان عدم تشوه النص عند استخراجه من سيرفرات لينكس -->
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&display=swap" rel="stylesheet">
+    <!-- مكتبات التصدير كما تفضلها -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
         :root {
@@ -17,22 +18,21 @@
             --title-right: -3mm;
             --label-width: 17%;
             --label-font-size: 10px;
-            --input-font-size: {{ font_size if font_size else 16 }}px;
+            --input-font-size: 16px;
             --title-font-size: 13px;
             --border-thickness: 2px;
         }
 
         * {
             box-sizing: border-box;
-            /* توحيد الخط المعتمد */
-            font-family: 'Cairo', Arial, Tahoma, sans-serif !important;
+            font-family: Arial, Tahoma, "Segoe UI", sans-serif;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             -webkit-tap-highlight-color: transparent;
         }
 
         html, body {
-            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
+            background-color: #525659;
             margin: 0;
             padding: 0;
             width: 100%;
@@ -40,21 +40,21 @@
             -webkit-overflow-scrolling: touch;
         }
 
+        /* حاوية مرنة للتوسيط ومنع المساحات الفارغة */
         .main-wrapper {
             min-width: 100%;
             width: max-content;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: {{ '0' if is_pdf else '15px' }};
+            padding: 15px;
             margin: 0 auto;
-            background-color: {{ '#ffffff' if is_pdf else '#525659' }};
         }
 
         .controls {
             width: 794px;
             margin-bottom: 12px;
-            display: {{ 'none' if is_pdf else 'flex' }};
+            display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 6px;
@@ -119,6 +119,7 @@
             color: #007bff;
         }
 
+        /* ورقة A4 الثابتة */
         .a4-page {
             width: 794px !important;
             height: 1123px !important;
@@ -131,7 +132,7 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            box-shadow: {{ 'none' if is_pdf else '0 0 15px rgba(0,0,0,0.5)' }};
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
             flex-shrink: 0;
         }
 
@@ -178,11 +179,13 @@
             table-layout: fixed;
         }
 
+        table.unified-table tr { overflow: hidden; }
+
         table.unified-table td {
             border: var(--border-thickness) solid #000000 !important;
             padding: 0 !important;
             vertical-align: middle;
-            position: relative; /* ضروري لعمل الكبسولة الداخلية */
+            position: relative; /* لتثبيت الحقول داخله */
         }
 
         .label-col { width: var(--label-width); text-align: center; background-color: #ffffff; }
@@ -199,65 +202,55 @@
 
         .input-col { width: calc(100% - var(--label-width)); position: relative; }
 
-        /* الكبسولة المقفلة: تمنع الجدول من التمدد حتى لو كتب المستخدم 100 سطر */
-        .input-wrapper {
+        /* حماية الحقول من التمدد وتأثيرات الهواتف الافتراضية */
+        .input-col input,
+        .input-col textarea {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .input-wrapper input,
-        .input-wrapper textarea,
-        .input-wrapper .pdf-text-val {
             width: 100%; height: 100%;
             border: none !important;
             outline: none !important;
             padding: 0 6px;
-            font-size: var(--input-font-size); 
+            font-size: var(--input-font-size);
             font-weight: bold;
-            background: transparent; 
-            font-family: inherit; 
+            background: transparent;
+            font-family: inherit;
             color: #000000;
-            text-align: center; 
-            resize: none; 
+            text-align: center;
+            resize: none;
             margin: 0;
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
             border-radius: 0;
+            /* التأكد من بقاء النص داخل الحدود */
+            overflow: hidden; 
         }
 
-        .input-wrapper input:focus,
-        .input-wrapper textarea:focus {
+        .input-col input:focus,
+        .input-col textarea:focus {
             background-color: rgba(0, 123, 255, 0.04);
         }
 
-        .input-wrapper input { line-height: 1.5; }
-        .input-wrapper textarea { padding-top: 6px; line-height: 1.2; white-space: pre-wrap; }
+        .input-col input { display: block; line-height: 1.5; }
+        .input-col textarea { padding-top: 6px; line-height: 1.2; white-space: pre-wrap; }
 
-        .pdf-text-val { display: flex; justify-content: center; align-items: center; }
-        .pdf-text-val.multi-line { align-items: flex-start; padding-top: 6px; white-space: pre-wrap; line-height: 1.2; }
+        @page { size: 210mm 297mm; margin: 0 !important; }
 
-        @page {
-            size: 210mm 297mm;
-            margin: 0 !important;
-        }
-
+        /* طباعة A4 دقيقة ورسمية */
         @media print {
             html, body {
                 width: 210mm !important; height: 297mm !important; margin: 0 !important; padding: 0 !important;
-                background: #ffffff !important; overflow: visible !important; 
+                background: #ffffff !important; overflow: visible !important;
             }
             .controls { display: none !important; }
             .main-wrapper { padding: 0 !important; margin: 0 !important; display: block !important; width: 210mm !important; }
             .a4-page {
                 margin: 0 !important; width: 210mm !important; height: 297mm !important;
                 box-shadow: none !important; border: none !important;
+                page-break-before: avoid !important; page-break-after: avoid !important; page-break-inside: avoid !important;
             }
-            .input-wrapper input:focus, .input-wrapper textarea:focus { background-color: transparent !important; }
+            .input-col input:focus, .input-col textarea:focus { background-color: transparent !important; }
         }
     </style>
 </head>
@@ -272,7 +265,7 @@
             <div class="control-group">
                 <span>حجم الخط:</span>
                 <button type="button" class="btn-step" id="fontDecBtn">-</button>
-                <span class="val-display" id="disp-inputFont">{{ font_size if font_size else 16 }}px</span>
+                <span class="val-display" id="disp-inputFont">16px</span>
                 <button type="button" class="btn-step" id="fontIncBtn">+</button>
             </div>
         </div>
@@ -288,71 +281,43 @@
             <div class="table-container" id="tableContainer">
                 <table class="unified-table">
                     <tbody>
-                        {% macro render_row(h, title1, title2, key, is_area=False) %}
-                        <!-- الارتفاع هنا ثابت لا يمكن أن يتغير بفضل الكبسولة -->
-                        <tr style="height: {{ h }}mm;">
-                            <td class="label-col">
-                                <div class="rotated-label-box">
-                                    <div class="rotated-label">
-                                        <span>{{ title1 }}</span>
-                                        {% if title2 %}<span>{{ title2 }}</span>{% endif %}
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="input-col">
-                                <div class="input-wrapper">
-                                    {% if is_pdf %}
-                                        <div class="pdf-text-val {{ 'multi-line' if is_area else 'single-line' }}">
-                                            {{ form_data.get(key, '') }}
-                                        </div>
-                                    {% else %}
-                                        {% if is_area %}
-                                            <!-- منع التصحيح التلقائي المزعج للهواتف -->
-                                            <textarea data-key="{{ key }}" spellcheck="false" autocomplete="off" autocorrect="off">{{ form_data.get(key, '') }}</textarea>
-                                        {% else %}
-                                            <input type="text" data-key="{{ key }}" value="{{ form_data.get(key, '') }}" spellcheck="false" autocomplete="off" autocorrect="off">
-                                        {% endif %}
-                                    {% endif %}
-                                </div>
-                            </td>
+                        <tr style="height: 19.76mm;">
+                            <td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الملاحظات</span><span>ورقم الهاتف</span></div></div></td>
+                            <td class="input-col"><textarea data-key="notes_phone" spellcheck="false"></textarea></td>
                         </tr>
-                        {% endmacro %}
-
-                        {{ render_row(19.76, 'الملاحظات', 'ورقم الهاتف', 'notes_phone', True) }}
-                        {{ render_row(17.16, 'رقم البطاقة', 'التموينية', 'ration_card') }}
-                        {{ render_row(14.56, 'اقرب نقطة', 'دالة', 'nearest_landmark', True) }}
-                        {{ render_row(8.84, 'دار', '', 'house_number') }}
-                        {{ render_row(8.84, 'زقاق', '', 'alley') }}
-                        {{ render_row(8.84, 'محلة', '', 'neighborhood') }}
-                        {{ render_row(9.88, 'الحي', '', 'district') }}
-                        {{ render_row(11.96, 'المحافظة', '', 'governorate') }}
-                        {{ render_row(11.44, 'الصفحة', '', 'page_number') }}
-                        {{ render_row(10.40, 'السجل', '', 'record_number') }}
-                        {{ render_row(11.96, 'رقم', 'الهوية', 'id_number') }}
-                        {{ render_row(11.96, 'دائرة', 'الاحوال', 'civil_status_dept', True) }}
-                        {{ render_row(13.52, 'اسم جد', 'الزوج / ـة', 'spouse_grandfather') }}
-                        {{ render_row(13.52, 'اسم اب', 'الزوج / ـة', 'spouse_father') }}
-                        {{ render_row(11.96, 'اسم', 'الزوج / ـة', 'spouse_name') }}
-                        {{ render_row(9.88, 'جد الام', '', 'mother_grandfather') }}
-                        {{ render_row(9.88, 'أب الام', '', 'mother_father') }}
-                        {{ render_row(9.88, 'اسم الام', '', 'mother_name') }}
-                        {{ render_row(11.96, 'تاريخ', 'الولادة', 'birth_date') }}
-                        {{ render_row(9.88, 'اللقب', '', 'surname') }}
-                        {{ render_row(9.88, 'اب الجد', '', 'great_grandfather') }}
-                        {{ render_row(9.36, 'الجد', '', 'grandfather') }}
-                        {{ render_row(9.36, 'الاب', '', 'father') }}
-                        {{ render_row(9.36, 'الاسم', '', 'name') }}
+                        <tr style="height: 17.16mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>رقم البطاقة</span><span>التموينية</span></div></div></td><td class="input-col"><input type="text" data-key="ration_card" spellcheck="false"></td></tr>
+                        <tr style="height: 14.56mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اقرب نقطة</span><span>دالة</span></div></div></td><td class="input-col"><textarea data-key="nearest_landmark" spellcheck="false"></textarea></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>دار</span></div></div></td><td class="input-col"><input type="text" data-key="house_number" spellcheck="false"></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>زقاق</span></div></div></td><td class="input-col"><input type="text" data-key="alley" spellcheck="false"></td></tr>
+                        <tr style="height: 8.84mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>محلة</span></div></div></td><td class="input-col"><input type="text" data-key="neighborhood" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الحي</span></div></div></td><td class="input-col"><input type="text" data-key="district" spellcheck="false"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>المحافظة</span></div></div></td><td class="input-col"><input type="text" data-key="governorate" spellcheck="false"></td></tr>
+                        <tr style="height: 11.44mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الصفحة</span></div></div></td><td class="input-col"><input type="text" data-key="page_number" spellcheck="false"></td></tr>
+                        <tr style="height: 10.40mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>السجل</span></div></div></td><td class="input-col"><input type="text" data-key="record_number" spellcheck="false"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>رقم</span><span>الهوية</span></div></div></td><td class="input-col"><input type="text" data-key="id_number" spellcheck="false"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>دائرة</span><span>الاحوال</span></div></div></td><td class="input-col"><textarea data-key="civil_status_dept" spellcheck="false"></textarea></td></tr>
+                        <tr style="height: 13.52mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم جد</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_grandfather" spellcheck="false"></td></tr>
+                        <tr style="height: 13.52mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم اب</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_father" spellcheck="false"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم</span><span>الزوج / ـة</span></div></div></td><td class="input-col"><input type="text" data-key="spouse_name" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>جد الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_grandfather" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>أب الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_father" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اسم الام</span></div></div></td><td class="input-col"><input type="text" data-key="mother_name" spellcheck="false"></td></tr>
+                        <tr style="height: 11.96mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>تاريخ</span><span>الولادة</span></div></div></td><td class="input-col"><input type="text" data-key="birth_date" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اللقب</span></div></div></td><td class="input-col"><input type="text" data-key="surname" spellcheck="false"></td></tr>
+                        <tr style="height: 9.88mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>اب الجد</span></div></div></td><td class="input-col"><input type="text" data-key="great_grandfather" spellcheck="false"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الجد</span></div></div></td><td class="input-col"><input type="text" data-key="grandfather" spellcheck="false"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الاب</span></div></div></td><td class="input-col"><input type="text" data-key="father" spellcheck="false"></td></tr>
+                        <tr style="height: 9.36mm;"><td class="label-col"><div class="rotated-label-box"><div class="rotated-label"><span>الاسم</span></div></div></td><td class="input-col"><input type="text" data-key="name" spellcheck="false"></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    {% if not is_pdf %}
     <script>
         const STORAGE_INPUTS = 'security_form_saved_inputs';
         const STORAGE_FONT = 'security_form_font_size';
-        let currentInputFont = {{ font_size if font_size else 16 }};
+        let currentInputFont = 16;
         let isExporting = false;
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -360,21 +325,34 @@
 
             document.querySelectorAll('[data-key]').forEach(el => {
                 el.addEventListener('input', saveFormData);
+                el.addEventListener('keyup', saveFormData);
                 el.addEventListener('change', saveFormData);
+                el.addEventListener('cut', () => setTimeout(saveFormData, 10));
+                el.addEventListener('paste', () => setTimeout(saveFormData, 10));
             });
 
-            document.getElementById('printBtn').addEventListener('click', function(e) {
+            window.addEventListener('keydown', (e) => {
+                if ((e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || 
+                    (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace'))) {
+                    e.preventDefault();
+                    clearSavedData();
+                }
+            });
+
+            // طباعة مع تأخير ذكي لتفريغ الحقول (blur) من التركيز
+            const printBtn = document.getElementById('printBtn');
+            printBtn.onclick = function(e) {
                 e.preventDefault();
                 this.blur();
                 if (document.activeElement) document.activeElement.blur();
                 setTimeout(() => window.print(), 300);
-            });
+            };
 
-            document.getElementById('pdfBtn').addEventListener('click', function(e) {
+            const pdfBtn = document.getElementById('pdfBtn');
+            pdfBtn.onclick = function(e) {
                 e.preventDefault();
-                this.blur();
-                exportPDFBackend();
-            });
+                exportPDF();
+            };
 
             document.getElementById('clearBtn').addEventListener('click', function() {
                 this.blur();
@@ -409,12 +387,15 @@
                         el.value = saved[key];
                     }
                 });
+
                 const savedFont = localStorage.getItem(STORAGE_FONT);
                 if (savedFont) {
                     currentInputFont = parseFloat(savedFont);
                     applyInputFont();
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         function adjustInputFont(delta) {
@@ -435,12 +416,13 @@
         function clearSavedData() {
             if (confirm('هل تريد مسح جميع البيانات المكتوبة؟')) {
                 localStorage.removeItem(STORAGE_INPUTS);
-                document.querySelectorAll('[data-key]').forEach(el => el.value = '');
+                document.querySelectorAll('[data-key]').forEach(el => {
+                    el.value = '';
+                });
             }
         }
 
-        // التصدير الإجباري بصيغة ملف PDF فقط (يعمل 100% على كافة الهواتف)
-        async function exportPDFBackend() {
+        async function exportPDF() {
             if (isExporting) return;
             isExporting = true;
 
@@ -451,27 +433,66 @@
 
             if (document.activeElement) document.activeElement.blur();
 
-            const currentData = {};
-            document.querySelectorAll('[data-key]').forEach(el => {
-                currentData[el.getAttribute('data-key')] = el.value;
-            });
+            const printableElement = document.getElementById('printableArea');
+            const fields = printableElement.querySelectorAll('.input-col input, .input-col textarea');
+            const tempDivs = [];
 
             try {
-                const response = await fetch('/api/export-pdf', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        data: currentData,
-                        font_size: currentInputFont
-                    })
+                fields.forEach(field => {
+                    const val = field.value || '';
+                    const isTextarea = field.tagName.toLowerCase() === 'textarea';
+                    const tempDiv = document.createElement('div');
+                    
+                    tempDiv.innerText = val;
+                    tempDiv.style.width = '100%';
+                    tempDiv.style.height = '100%';
+                    tempDiv.style.display = 'flex';
+                    tempDiv.style.alignItems = 'center';
+                    tempDiv.style.justifyContent = 'center';
+                    tempDiv.style.fontSize = currentInputFont + 'px';
+                    tempDiv.style.fontWeight = 'bold';
+                    tempDiv.style.color = '#000000';
+                    tempDiv.style.textAlign = 'center';
+                    tempDiv.style.fontFamily = 'Arial, Tahoma, sans-serif';
+                    
+                    if (isTextarea) {
+                        tempDiv.style.whiteSpace = 'pre-wrap';
+                        tempDiv.style.lineHeight = '1.2';
+                        tempDiv.style.padding = '2px 4px';
+                        tempDiv.style.wordBreak = 'break-word';
+                    } else {
+                        tempDiv.style.whiteSpace = 'nowrap';
+                        tempDiv.style.overflow = 'hidden';
+                    }
+                    
+                    field.style.display = 'none';
+                    field.parentNode.appendChild(tempDiv);
+                    tempDivs.push(tempDiv);
                 });
 
-                if (!response.ok) throw new Error('فشل السيرفر');
+                const canvas = await html2canvas(printableElement, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
 
-                const pdfBlob = await response.blob();
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4',
+                    compress: true
+                });
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                
                 const fileName = 'نموذج_رقم_1.pdf';
-
-                // إجبار المتصفح على فتح نافذة حفظ الملف بامتداد .pdf
+                const pdfBlob = pdf.output('blob');
+                
+                // إنشاء ملف وتنزيله بشكل مباشر وإجباري (لمنع فتح النافذة المزعجة في بعض الهواتف)
                 const downloadBlob = new Blob([pdfBlob], { type: 'application/pdf' });
                 const blobUrl = URL.createObjectURL(downloadBlob);
                 const downloadLink = document.createElement('a');
@@ -483,18 +504,21 @@
                 setTimeout(() => {
                     document.body.removeChild(downloadLink);
                     URL.revokeObjectURL(blobUrl);
-                }, 2500);
+                }, 2000);
 
             } catch (err) {
-                console.error(err);
-                alert('حدث خطأ أثناء تصدير الملف');
+                if (err.name !== 'AbortError') {
+                    console.error(err);
+                    alert('حدث خطأ أثناء تصدير الملف');
+                }
             } finally {
+                fields.forEach(field => field.style.display = '');
+                tempDivs.forEach(div => div.remove());
                 btn.innerText = originalText;
                 btn.disabled = false;
                 isExporting = false;
             }
         }
     </script>
-    {% endif %}
 </body>
 </html>
