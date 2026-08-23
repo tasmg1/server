@@ -41,30 +41,26 @@ async def shutdown_event():
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_form(request: Request):
-    return templates.TemplateResponse(
+    # استخدام رندرة Jinja2 المباشرة لتفادي تعارض معاملات FastAPI
+    template = templates.get_template("index.html")
+    html_content = template.render(
         request=request,
-        name="index.html",
-        context={
-            "form_data": {},
-            "font_size": 16,
-            "is_pdf": False
-        }
+        form_data={},
+        font_size=16,
+        is_pdf=False
     )
+    return HTMLResponse(content=html_content)
 
 @app.post("/api/export-pdf")
 async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
-    # رندرة القالب مع تمرير المعاملات بالاسم الصريح
-    rendered_html = templates.TemplateResponse(
+    template = templates.get_template("index.html")
+    rendered_html = template.render(
         request=request,
-        name="index.html",
-        context={
-            "form_data": payload.data,
-            "font_size": payload.font_size,
-            "is_pdf": True
-        }
-    ).body.decode("utf-8")
+        form_data=payload.data,
+        font_size=payload.font_size,
+        is_pdf=True
+    )
 
-    # إنشاء صفحة بحجم A4
     page = await browser_instance.new_page(
         viewport={"width": 794, "height": 1123},
         device_scale_factor=2
@@ -95,4 +91,4 @@ async def export_pdf_endpoint(request: Request, payload: FormDataPayload):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=port)
